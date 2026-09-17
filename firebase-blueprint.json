@@ -1,0 +1,108 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Kullanıcı profili ve yetki seviyesi",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string" },
+        "role": { "type": "string", "enum": ["yonetici", "teknisyen", "cirak"] },
+        "branch": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["uid", "role"]
+    },
+    "ServiceRecord": {
+      "title": "ServiceRecord",
+      "description": "Cihaz servis kayıt fişi",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "serviceNo": { "type": "string" },
+        "customerName": { "type": "string" },
+        "customerPhone": { "type": "string" },
+        "deviceModel": { "type": "string" },
+        "imei": { "type": "string" },
+        "reportedFault": { "type": "string" },
+        "stage": { "type": "string" },
+        "estimatedCostTl": { "type": "number" },
+        "finalCostTl": { "type": "number" },
+        "technicianId": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "serviceNo", "customerName", "deviceModel", "stage"]
+    },
+    "StockItem": {
+      "title": "StockItem",
+      "description": "Yedek parça ve aksesuar stok kalemi",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "barcode": { "type": "string" },
+        "stockCode": { "type": "string" },
+        "name": { "type": "string" },
+        "category": { "type": "string" },
+        "quantity": { "type": "number" },
+        "minStock": { "type": "number" },
+        "costUsd": { "type": "number" },
+        "salePriceTl": { "type": "number" },
+        "isActive": { "type": "boolean" }
+      },
+      "required": ["id", "name", "quantity", "salePriceTl"]
+    },
+    "SaleRecord": {
+      "title": "SaleRecord",
+      "description": "Tamamlanan hızlı satış fişi",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "receiptNo": { "type": "string" },
+        "totalAmount": { "type": "number" },
+        "paymentMethod": { "type": "string" },
+        "staffName": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "receiptNo", "totalAmount", "paymentMethod"]
+    },
+    "AppSettings": {
+      "title": "AppSettings",
+      "description": "Firma, yazıcı ve çalışma parametreleri",
+      "type": "object",
+      "properties": {
+        "firmName": { "type": "string" },
+        "branchName": { "type": "string" },
+        "phone": { "type": "string" },
+        "whatsappPhone": { "type": "string" },
+        "address": { "type": "string" },
+        "usdExchangeRate": { "type": "number" }
+      },
+      "required": ["firmName"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "Kullanıcı hesapları ve yetkileri"
+    },
+    "/services/{serviceId}": {
+      "schema": "ServiceRecord",
+      "description": "Teknik servis kayıtları koleksiyonu"
+    },
+    "/stock/{stockId}": {
+      "schema": "StockItem",
+      "description": "Stok ve yedek parça envanteri"
+    },
+    "/sales/{saleId}": {
+      "schema": "SaleRecord",
+      "description": "Tamamlanan satış kayıtları"
+    },
+    "/settings/config": {
+      "schema": "AppSettings",
+      "description": "Dükkan ve sistem genel konfigürasyonu"
+    }
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "name": "Remix Osman Teknik Pro",
+  "description": "Profesyonel teknik servis, telefon alım-satım ve stok yönetim ERP sistemi.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "geolocation"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
