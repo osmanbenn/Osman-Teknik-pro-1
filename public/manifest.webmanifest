@@ -1,0 +1,15 @@
+{
+  "name": "Osman Teknik Pro",
+  "short_name": "Osman Teknik",
+  "description": "Telefon teknik servis, satış ve stok yönetimi",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#030712",
+  "theme_color": "#f97316",
+  "lang": "tr-TR",
+  "icons": [
+    {"src":"/icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}
+  ]
+}
