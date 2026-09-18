@@ -9,8 +9,60 @@ dotenv.config();
 
 const app = express();
 const PORT = 3000;
+const aiRequestCounts = new Map<string, { count: number; resetAt: number }>();
 
+app.disable('x-powered-by');
 app.use(express.json({ limit: '10mb' }));
+
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+
+  const key = String(req.ip || 'unknown');
+  const now = Date.now();
+  const bucket = aiRequestCounts.get(key) || { count: 0, resetAt: now + 60000 };
+
+  if (now > bucket.resetAt) {
+    bucket.count = 0;
+    bucket.resetAt = now + 60000;
+  }
+
+  if (bucket.count >= 60) {
+    return res.status(429).json({ error: 'Too many requests. Please retry later.' });
+  }
+
+  bucket.count += 1;
+  aiRequestCounts.set(key, bucket);
+  next();
+});
+
+function requireAiAccess(req: any, res: any, next: any) {
+  const requiredToken = process.env.AI_ACCESS_TOKEN;
+  if (!requiredToken) {
+    return next();
+  }
+
+  const authHeader = req.headers.authorization || '';
+  const providedToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+
+  if (providedToken !== requiredToken) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  next();
+}
+
+app.use('/api/gemini', requireAiAccess);
+
+// Health Check
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    timestamp: new Date().toISOString()
+  });
+});
 
 // Lazy GoogleGenAI client with User-Agent header as mandated by skill
 let aiClient: GoogleGenAI | null = null;
@@ -41,7 +93,6 @@ async function generateContentWithResilience(params: {
   const ai = getAi();
   const { primaryModel, contents, config } = params;
 
-  // Fallback candidate chain based on officially supported Gemini 3 models
   const candidateModels = [
     primaryModel,
     'gemini-3.5-flash',
@@ -90,15 +141,6 @@ async function generateContentWithResilience(params: {
   throw lastError;
 }
 
-// Health Check
-app.get('/api/health', (req, res) => {
-  res.json({
-    status: 'ok',
-    hasApiKey: !!process.env.GEMINI_API_KEY,
-    timestamp: new Date().toISOString()
-  });
-});
-
 // 1. Multi-turn Gemini Chatbot with Role-Based System Instructions
 app.post('/api/gemini/chat', async (req, res) => {
   try {
@@ -141,7 +183,6 @@ app.post('/api/gemini/chat', async (req, res) => {
       }
     }
 
-    // Format history for @google/genai
     const contents = (messages || []).map((m: any) => ({
       role: m.role === 'user' ? 'user' : 'model',
       parts: [{ text: m.text || m.content || '' }]
@@ -169,7 +210,6 @@ app.post('/api/gemini/chat', async (req, res) => {
   }
 });
 
-// 2. Google Search Grounding - gemini-3.5-flash with googleSearch tool
 app.post('/api/gemini/search', async (req, res) => {
   try {
     const { query } = req.body;
@@ -201,7 +241,6 @@ app.post('/api/gemini/search', async (req, res) => {
       result = fallback.response;
     }
 
-    // Extract search web URLs
     const searchChunks = result.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
     const webSources = searchChunks
       .map((chunk: any) => ({
@@ -223,7 +262,6 @@ app.post('/api/gemini/search', async (req, res) => {
   }
 });
 
-// 3. Google Maps Grounding - gemini-3.5-flash with googleMaps tool
 app.post('/api/gemini/maps', async (req, res) => {
   try {
     const { query, location = 'Kadıköy, İstanbul', latLng } = req.body;
@@ -266,7 +304,6 @@ app.post('/api/gemini/maps', async (req, res) => {
       result = fallback.response;
     }
 
-    // Extract Google Maps and Web URLs from groundingChunks
     const chunks = result.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
     const mapsSources = chunks
       .map((chunk: any) => {
@@ -302,7 +339,6 @@ app.post('/api/gemini/maps', async (req, res) => {
   }
 });
 
-// 4. Arıza Teşhis & Hızlı Maliyet Çıkarma
 app.post('/api/gemini/diagnose', async (req, res) => {
   try {
     const { deviceModel, faultDescription } = req.body;
@@ -342,7 +378,6 @@ app.post('/api/gemini/diagnose', async (req, res) => {
   }
 });
 
-// 5. Live Voice Conversations (HTTP & Fallback Turn Endpoint using gemini-3.1-flash-live-preview)
 app.post('/api/gemini/live-voice', async (req, res) => {
   try {
     const { transcript, history = [] } = req.body;
@@ -400,7 +435,6 @@ app.post('/api/gemini/live-voice', async (req, res) => {
   }
 });
 
-// 6. Akıllı Sesli Komut ve Uygulama Kontrol Motoru (AI Voice Control Engine)
 app.post('/api/gemini/voice-control', async (req, res) => {
   try {
     const { transcript, currentTab, contextSummary } = req.body;
@@ -439,7 +473,7 @@ app.post('/api/gemini/voice-control', async (req, res) => {
       `  "searchQuery": string | null,\n` +
       `  "cartItem": { "name": string, "price": number } | null,\n` +
       `  "themeName": "default-dark" | "light-card" | "colorful-minimal" | null,\n` +
-      `  "spokenResponse": "Kullanıcıya Türkçe seslendirilecek samimi ve profesyonel usta cevabı. Örneğin: 'Yeni servis kabul fişi açılıyor usta.' veya 'Bugünkü kasa ciromuz 12.500 TL.' veya 'Hızlı satış ekranına geçildi.'",\n` +
+      `  "spokenResponse": "Kullanıcıya Türkçe seslendirilecek samimi ve profesyonel usta cevabı.",\n` +
       `  "displayText": "Ekranda gösterilecek kısa durum özeti"\n` +
       `}`;
 
@@ -477,7 +511,6 @@ app.post('/api/gemini/voice-control', async (req, res) => {
   }
 });
 
-// 7. Sesle Servis Kaydı Ayrıştırıcı (Hands-free Voice Intake Parser)
 app.post('/api/gemini/parse-service-intake', async (req, res) => {
   try {
     const { speechText } = req.body;
@@ -543,11 +576,9 @@ app.post('/api/gemini/parse-service-intake', async (req, res) => {
   }
 });
 
-// Start Server with WebSocket (Live API on /live) & Vite Middleware
 async function startServer() {
   const server = http.createServer(app);
 
-  // Configure WebSocket Server for gemini-3.1-flash-live-preview
   const wss = new WebSocketServer({ server, path: '/live' });
 
   wss.on('connection', async (clientWs) => {
