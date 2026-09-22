@@ -31,6 +31,7 @@ import { useApp } from '../context/AppContext';
 import { StockItem, PaymentMethod, SaleRecord, CartItem } from '../types';
 import { ThermalReceiptModal } from './ThermalReceiptModal';
 import { CameraScannerModal } from './CameraScannerModal';
+import { resolveScan } from '../utils/smartScan';
 
 export const Satis: React.FC = () => {
   const {
@@ -201,40 +202,39 @@ export const Satis: React.FC = () => {
     }, 100);
   };
 
-  // Kamera ile Başarılı Barkod Okutma Olayı
+  // Kamera ile başarılı barkod okutma: kesin barkod/stok kodu eşleşmesi.
+  // Ürün adında kısmi eşleşme kamera akışında kullanılmaz; yanlış ürün satışını önler.
   const handleCameraScanSuccess = (code: string) => {
-    const cleanCode = code.trim();
-    if (!cleanCode) return;
+    const resolution = resolveScan(code, stock);
+    if (!resolution.code) return;
 
-    const found = stock.find(
-      s => s.isActive && (s.barcode === cleanCode || s.stockCode.toLowerCase() === cleanCode.toLowerCase() || s.name.toLowerCase().includes(cleanCode.toLowerCase()))
-    );
-
-    if (found) {
-      if (found.quantity <= 0) {
-        setScanToast({
-          message: `⚠️ "${found.name}" ürünü stokta tükenmiştir!`,
-          type: 'warning'
-        });
-        playBeep();
-      } else {
-        addToCart(found);
-        playBeep();
-        setScanToast({
-          message: `✅ "${found.name}" sepete eklendi! (₺${found.salePriceTl})`,
-          type: 'success'
-        });
-        setNotFoundQuery(null);
-      }
-    } else {
-      setBarcodeQuery(cleanCode);
-      setNotFoundQuery(cleanCode);
-      setActiveInputTab('barkod');
+    if (resolution.status === 'found' && resolution.product) {
+      addToCart(resolution.product);
+      playBeep();
       setScanToast({
-        message: `ℹ️ Barkod [${cleanCode}] kayıtlı değil! Manuel satabilir veya stoğa ekleyebilirsiniz.`,
-        type: 'info'
+        message: `✅ "${resolution.product.name}" sepete eklendi! (₺${resolution.product.salePriceTl})`,
+        type: 'success'
       });
+      setNotFoundQuery(null);
+      return;
     }
+
+    if (resolution.status === 'out_of_stock' && resolution.product) {
+      setScanToast({
+        message: `⚠️ "${resolution.product.name}" ürünü stokta tükenmiştir!`,
+        type: 'warning'
+      });
+      playBeep();
+      return;
+    }
+
+    setBarcodeQuery(resolution.code);
+    setNotFoundQuery(resolution.code);
+    setActiveInputTab('barkod');
+    setScanToast({
+      message: `ℹ️ Barkod [${resolution.code}] kayıtlı değil! Yeni ürün tanımlayabilir veya manuel satış yapabilirsiniz.`,
+      type: 'info'
+    });
   };
 
   // Scan Toast Otomatik Kapanma
