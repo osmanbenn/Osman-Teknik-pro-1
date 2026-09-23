@@ -31,6 +31,7 @@ import { useApp } from '../context/AppContext';
 import { StockItem, PaymentMethod, SaleRecord, CartItem } from '../types';
 import { ThermalReceiptModal } from './ThermalReceiptModal';
 import { CameraScannerModal } from './CameraScannerModal';
+import { SmartOcrProductModal } from './SmartOcrProductModal';
 import { resolveScan } from '../utils/smartScan';
 
 export const Satis: React.FC = () => {
@@ -70,6 +71,7 @@ export const Satis: React.FC = () => {
   const [barcodeQuery, setBarcodeQuery] = useState('');
   const [notFoundQuery, setNotFoundQuery] = useState<string | null>(null);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const [isOcrProductOpen, setIsOcrProductOpen] = useState(false);
   const [scanToast, setScanToast] = useState<{ message: string; type: 'success' | 'warning' | 'info' } | null>(null);
 
   // Sepet İçi Fiyat/İsim Düzenleme State
@@ -1265,7 +1267,30 @@ export const Satis: React.FC = () => {
         receiptType="satis_slip"
       />
 
+      {/* OCR ürün tanıma: sonuç kullanıcı onayı olmadan sepete girmez */}
+      <SmartOcrProductModal
+        isOpen={isOcrProductOpen}
+        stock={stock}
+        onClose={() => setIsOcrProductOpen(false)}
+        onConfirm={(product) => {
+          addToCart(product);
+          playBeep();
+          setScanToast({ message: `✅ "${product.name}" OCR adayı onaylandı ve sepete eklendi.`, type: 'success' });
+          setIsOcrProductOpen(false);
+        }}
+      />
+
       {/* Kamera Barkod Okutucu Modalı */}
+      {isScannerOpen && (
+        <button
+          type="button"
+          onClick={() => { setIsScannerOpen(false); setIsOcrProductOpen(true); }}
+          className="fixed z-[70] bottom-6 left-1/2 -translate-x-1/2 px-4 py-2 rounded-full bg-orange-600 text-white text-xs font-black shadow-2xl border border-orange-400"
+        >
+          Barkod yok? Akıllı Ürün Tanı
+        </button>
+      )}
+
       <CameraScannerModal
         isOpen={isScannerOpen}
         onClose={() => setIsScannerOpen(false)}
