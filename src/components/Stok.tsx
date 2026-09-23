@@ -22,6 +22,7 @@ import { useApp } from '../context/AppContext';
 import { StockItem } from '../types';
 import { CameraScannerModal } from './CameraScannerModal';
 import { WholesaleOrderModal } from './WholesaleOrderModal';
+import { StockCountModal } from './StockCountModal';
 
 export const Stok: React.FC = () => {
   const {
@@ -45,6 +46,7 @@ export const Stok: React.FC = () => {
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [scannerTarget, setScannerTarget] = useState<'search' | 'add'>('search');
   const [isOrderRobotOpen, setIsOrderRobotOpen] = useState(false);
+  const [isStockCountOpen, setIsStockCountOpen] = useState(false);
   const [scannedNotFoundBarcode, setScannedNotFoundBarcode] = useState<string | null>(null);
   const [stockToast, setStockToast] = useState<{ message: string; type: 'success' | 'warning' | 'info' } | null>(null);
 
@@ -198,6 +200,13 @@ export const Stok: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={() => setIsStockCountOpen(true)}
+            className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-3.5 py-2.5 rounded-xl flex items-center gap-1.5"
+          >
+            <Barcode size={15} />
+            <span>Stok Sayım</span>
+          </button>
           <button
             onClick={() => {
               setScannerTarget('search');
@@ -721,6 +730,22 @@ export const Stok: React.FC = () => {
           </div>
         </div>
       )}
+
+      <StockCountModal
+        isOpen={isStockCountOpen}
+        stock={stock}
+        onClose={() => setIsStockCountOpen(false)}
+        onApply={(counts) => {
+          Object.entries(counts).forEach(([id, counted]) => {
+            const product = stock.find(s => s.id === id);
+            if (product && product.quantity !== counted) {
+              updateStockItem(id, { quantity: counted });
+            }
+          });
+          setStockToast({ message: '✅ Stok sayımı onaylandı ve sayılan miktarlar stoğa uygulandı.', type: 'success' });
+          setIsStockCountOpen(false);
+        }}
+      />
 
       {/* Kamera Barkod Tarayıcı Modalı */}
       <CameraScannerModal
