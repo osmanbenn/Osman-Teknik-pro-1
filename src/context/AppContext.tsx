@@ -857,20 +857,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     });
 
-    // 6. Kasa hareketi kaydet (Nakit / Kart / Havale)
-    setCashMovements(prev => [
-      {
-        id: `cm-${Date.now()}`,
-        type: 'gelir_satis',
-        amount: total,
+    // 6. Kasa hareketi kaydet. Karma ödemede her tahsilat kanalı ayrı hareket olur.
+    if (paymentMethod === 'karma') {
+      const parts = splitPayments || {};
+      const paidTotal = (parts.nakit || 0) + (parts.kart || 0) + (parts.havale || 0) + (parts.veresiye || 0);
+      if (Math.abs(paidTotal - total) > 0.01) {
+        throw new Error(`Karma ödeme toplamı satış tutarıyla eşleşmiyor. Beklenen ₺${total}, girilen ₺${paidTotal}.`);
+      }
+      const cashParts = [
+        ['nakit', parts.nakit || 0],
+        ['kart', parts.kart || 0],
+        ['havale', parts.havale || 0]
+      ] as const;
+      cashParts.filter(([, amount]) => amount > 0).forEach(([method, amount], index) => {
+        setCashMovements(prev => [{
+          id: `cm-${Date.now()}-${index}`, type: 'gelir_satis', amount, method,
+          category: 'Hızlı Satış / POS - Karma',
+          description: `${receiptNo} karma ödeme (${customerName || 'Perakende'})`,
+          user: currentUser.name, timestamp: nowStr
+        }, ...prev]);
+      });
+    } else if (paymentMethod !== 'veresiye') {
+      setCashMovements(prev => [{
+        id: `cm-${Date.now()}`, type: 'gelir_satis', amount: total,
         method: paymentMethod === 'nakit' ? 'nakit' : paymentMethod === 'kart' ? 'kart' : 'havale',
         category: 'Hızlı Satış / POS',
         description: `${receiptNo} no perakende satış (${customerName || 'Perakende'})`,
-        user: currentUser.name,
-        timestamp: nowStr
-      },
-      ...prev
-    ]);
+        user: currentUser.name, timestamp: nowStr
+      }, ...prev]);
+    }
 
     setSales(prev => [newSale, ...prev]);
     clearCart();
