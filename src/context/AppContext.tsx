@@ -1219,7 +1219,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         stockMovements,
         addStockItem,
         updateStockItem,
-      receiveStockPurchase,
+        receiveStockPurchase,
         deactivateStockItem,
         importStockBatch,
         cart,
