@@ -30,6 +30,7 @@ export const Stok: React.FC = () => {
     stock,
     addStockItem,
     updateStockItem,
+    receiveStockPurchase,
     deactivateStockItem,
     importStockBatch,
     stockMovements,
@@ -741,7 +742,7 @@ export const Stok: React.FC = () => {
         stock={stock}
         onClose={() => setIsPurchaseCameraOpen(false)}
         onReceiveExisting={(product, qty, newCostUsd, supplier) => {
-          updateStockItem(product.id, { quantity: product.quantity + qty, costUsd: newCostUsd, supplierName: supplier || product.supplierName });
+          receiveStockPurchase(product.id, qty, newCostUsd, supplier || product.supplierName);
           setStockToast({ message: `✅ ${product.name}: +${qty} adet mal girişi yapıldı. Yeni stok ${product.quantity + qty}.`, type: 'success' });
           setIsPurchaseCameraOpen(false);
         }}
