@@ -16,7 +16,8 @@ export const StockCountModal: React.FC<Props> = ({ isOpen, stock, onClose, onApp
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [unknown, setUnknown] = useState<string[]>([]);
 
-  const rows = useMemo(() => Object.entries(counts).map(([id, counted]) => {
+  const rows = useMemo(() => Object.entries(counts).map(([id, countedValue]) => {
+    const counted = Number(countedValue);
     const product = stock.find(s => s.id === id);
     return product ? { product, counted, diff: stockCountDifference(product.quantity, counted) } : null;
   }).filter(Boolean) as Array<{product: StockItem; counted: number; diff: number}>, [counts, stock]);
@@ -46,7 +47,7 @@ export const StockCountModal: React.FC<Props> = ({ isOpen, stock, onClose, onApp
           </div>
           <div className="grid grid-cols-3 gap-2 text-center">
             <div className="rounded-xl bg-zinc-900 p-2"><div className="text-[10px] text-zinc-500">Ürün</div><b className="text-white">{rows.length}</b></div>
-            <div className="rounded-xl bg-zinc-900 p-2"><div className="text-[10px] text-zinc-500">Okutma</div><b className="text-white">{Object.values(counts).reduce((a,b)=>a+b,0)}</b></div>
+            <div className="rounded-xl bg-zinc-900 p-2"><div className="text-[10px] text-zinc-500">Okutma</div><b className="text-white">{Object.values(counts).reduce<number>((a, b) => a + Number(b), 0)}</b></div>
             <div className="rounded-xl bg-zinc-900 p-2"><div className="text-[10px] text-zinc-500">Farklı</div><b className="text-amber-400">{rows.filter(r=>r.diff!==0).length}</b></div>
           </div>
           <div className="space-y-2">
