@@ -226,6 +226,14 @@ export const ThermalReceiptModal: React.FC<ThermalReceiptModalProps> = ({
                   <span>Ödeme Şekli:</span>
                   <span className="uppercase font-semibold">{saleRecord.paymentMethod}</span>
                 </div>
+                {saleRecord.splitPayments && (
+                  <div className="pt-1 mt-1 border-t border-dotted border-zinc-300 text-[9px] space-y-0.5">
+                    {saleRecord.splitPayments.nakit ? <div className="flex justify-between"><span>Nakit:</span><span>₺{saleRecord.splitPayments.nakit}</span></div> : null}
+                    {saleRecord.splitPayments.kart ? <div className="flex justify-between"><span>Kart:</span><span>₺{saleRecord.splitPayments.kart}</span></div> : null}
+                    {saleRecord.splitPayments.havale ? <div className="flex justify-between"><span>Havale:</span><span>₺{saleRecord.splitPayments.havale}</span></div> : null}
+                    {saleRecord.splitPayments.veresiye ? <div className="flex justify-between"><span>Veresiye:</span><span>₺{saleRecord.splitPayments.veresiye}</span></div> : null}
+                  </div>
+                )}
               </div>
             )}
 
