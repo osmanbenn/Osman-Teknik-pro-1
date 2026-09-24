@@ -50,6 +50,7 @@ interface AppContextType {
   stockMovements: StockMovement[];
   addStockItem: (item: Omit<StockItem, 'id' | 'createdAt' | 'updatedAt'>) => void;
   updateStockItem: (id: string, item: Partial<StockItem>) => void;
+  receiveStockPurchase: (id: string, quantity: number, costUsd: number, supplierName?: string) => boolean;
   deactivateStockItem: (id: string) => boolean;
   importStockBatch: (items: Omit<StockItem, 'id' | 'createdAt' | 'updatedAt'>[]) => void;
   // POS & Satış
@@ -659,6 +660,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setStock(prev => prev.map(s => s.id === id ? { ...s, ...updates, updatedAt: nowStr } : s));
   };
 
+  const receiveStockPurchase = (id: string, quantity: number, costUsd: number, supplierName?: string): boolean => {
+    const item = stock.find(s => s.id === id);
+    const qty = Math.max(1, Math.floor(Number(quantity) || 0));
+    const unitCost = Math.max(0, Number(costUsd) || 0);
+    if (!item || !item.isActive || qty < 1) return false;
+    const nowStr = new Date().toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    setStock(prev => prev.map(s => s.id === id ? { ...s, quantity: s.quantity + qty, costUsd: unitCost, supplierName: supplierName || s.supplierName, updatedAt: new Date().toISOString().split('T')[0] } : s));
+    setStockMovements(prev => [{
+      id: `mov-${Date.now()}-purchase`, stockId: id, productName: item.name, type: 'giris', quantity: qty,
+      unitPrice: unitCost, referenceNo: `ALIS-${Date.now()}`, user: currentUser.name, timestamp: nowStr
+    }, ...prev]);
+    return true;
+  };
+
   const deactivateStockItem = (id: string): boolean => {
     const item = stock.find(s => s.id === id);
     if (!item) return false;
@@ -1204,6 +1219,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         stockMovements,
         addStockItem,
         updateStockItem,
+      receiveStockPurchase,
         deactivateStockItem,
         importStockBatch,
         cart,
