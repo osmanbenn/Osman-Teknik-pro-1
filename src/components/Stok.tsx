@@ -24,6 +24,7 @@ import { CameraScannerModal } from './CameraScannerModal';
 import { WholesaleOrderModal } from './WholesaleOrderModal';
 import { StockCountModal } from './StockCountModal';
 import { PurchaseCameraModal } from './PurchaseCameraModal';
+import { resolveScan } from '../utils/smartScan';
 
 export const Stok: React.FC = () => {
   const {
@@ -31,6 +32,7 @@ export const Stok: React.FC = () => {
     addStockItem,
     updateStockItem,
     receiveStockPurchase,
+    applyStockCount,
     deactivateStockItem,
     importStockBatch,
     stockMovements,
@@ -82,9 +84,8 @@ export const Stok: React.FC = () => {
 
     // Arama / Sorgulama Modu
     setSearchTerm(clean);
-    const matched = stock.find(
-      s => s.isActive && (s.barcode === clean || s.stockCode.toLowerCase() === clean.toLowerCase() || s.name.toLowerCase().includes(clean.toLowerCase()))
-    );
+    const scanResult = resolveScan(clean, stock);
+    const matched = scanResult.product;
 
     if (matched) {
       setStockToast({
@@ -762,13 +763,8 @@ export const Stok: React.FC = () => {
         stock={stock}
         onClose={() => setIsStockCountOpen(false)}
         onApply={(counts) => {
-          Object.entries(counts).forEach(([id, counted]) => {
-            const product = stock.find(s => s.id === id);
-            if (product && product.quantity !== counted) {
-              updateStockItem(id, { quantity: counted });
-            }
-          });
-          setStockToast({ message: '✅ Stok sayımı onaylandı ve sayılan miktarlar stoğa uygulandı.', type: 'success' });
+          const changed = applyStockCount(counts);
+          setStockToast({ message: `✅ Stok sayımı uygulandı. ${changed} üründe sayım farkı hareketi oluşturuldu.`, type: 'success' });
           setIsStockCountOpen(false);
         }}
       />
