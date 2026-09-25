@@ -84,6 +84,7 @@ export const Satis: React.FC = () => {
   const [customDiscountTl, setCustomDiscountTl] = useState<number>(0);
   const [useCustomDiscount, setUseCustomDiscount] = useState<boolean>(false);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('nakit');
+  const [splitPayments, setSplitPayments] = useState({ nakit: 0, kart: 0, havale: 0, veresiye: 0 });
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [receiptSale, setReceiptSale] = useState<SaleRecord | null>(null);
@@ -304,7 +305,8 @@ export const Satis: React.FC = () => {
       paymentMethod,
       calculatedDiscountRate,
       customerName || undefined,
-      customerPhone || undefined
+      customerPhone || undefined,
+      paymentMethod === 'karma' ? splitPayments : undefined
     );
 
     setReceiptSale(sale);
@@ -1178,6 +1180,20 @@ export const Satis: React.FC = () => {
                     <span>Havale / EFT</span>
                   </button>
                 </div>
+                <button type="button" onClick={() => setPaymentMethod('karma')} className={`mt-2 w-full p-2 rounded-xl border text-xs font-bold ${paymentMethod === 'karma' ? 'bg-orange-600/20 border-orange-500 text-orange-300' : 'bg-zinc-800 border-zinc-700 text-zinc-400'}`}>Karma Ödeme</button>
+                {paymentMethod === 'karma' && (
+                  <div className="mt-2 grid grid-cols-2 gap-2 rounded-xl border border-orange-500/20 bg-orange-500/5 p-2">
+                    {(['nakit','kart','havale','veresiye'] as const).map(method => (
+                      <label key={method} className="text-[10px] uppercase text-zinc-400">{method}
+                        <input type="number" min="0" step="0.01" value={splitPayments[method] || ''} onChange={e => setSplitPayments(prev => ({...prev, [method]: Math.max(0, Number(e.target.value) || 0)}))} className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-xs text-white"/>
+                      </label>
+                    ))}
+                    <div className="col-span-2 flex justify-between text-[11px] font-bold">
+                      <span className="text-zinc-400">Dağıtılan:</span>
+                      <span className={Math.abs(Object.values(splitPayments).reduce((a,b)=>a+b,0)-finalTotal) < 0.01 ? 'text-emerald-400' : 'text-amber-400'}>₺{Object.values(splitPayments).reduce((a,b)=>a+b,0)} / ₺{finalTotal}</span>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -1200,7 +1216,7 @@ export const Satis: React.FC = () => {
 
               <button
                 id="btn-complete-sale"
-                disabled={cart.length === 0}
+                disabled={cart.length === 0 || (paymentMethod === 'karma' && Math.abs(Object.values(splitPayments).reduce((a,b)=>a+b,0)-finalTotal) >= 0.01)}
                 onClick={handleCompleteSale}
                 className={`w-full py-3.5 rounded-2xl font-black text-sm flex items-center justify-center gap-2 shadow-xl transition-all cursor-pointer ${
                   cart.length > 0
