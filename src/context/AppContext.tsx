@@ -321,7 +321,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       stageHistory: [
         {
           stage: 'kabul',
-          updatedAt: nowStr,
+          updatedAt: new Date().toISOString().split('T')[0],
           updatedBy: currentUser.name,
           note: 'Cihaz kabul kaydı açıldı.'
         }
@@ -824,7 +824,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // 4. Stok düşümü - Doğrulanmış stoktan tam adet düşülür, Math.max(0) ile gizlenmez
     setStock(prev => prev.map(s => {
-      const soldItem = cart.find(ci => ci.stockId === s.id || ci.barcode === s.barcode);
+      const soldItem = cart.find(ci => ci.stockId === s.id);
       if (soldItem) {
         const remainingQty = s.quantity - soldItem.quantity;
         return {
@@ -856,6 +856,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         ]);
       }
     });
+
+    // Veresiye tutarı varsa kayıtlı müşteri carisine otomatik borç yaz.
+    const creditAmount = paymentMethod === 'veresiye' ? total : paymentMethod === 'karma' ? (splitPayments?.veresiye || 0) : 0;
+    if (creditAmount > 0) {
+      const normalizedPhone = (customerPhone || '').replace(/\D/g, '');
+      const customer = customers.find(c => c.phone.replace(/\D/g, '') === normalizedPhone);
+      if (!customer || !normalizedPhone) {
+        throw new Error('Veresiye satış için kayıtlı müşteri telefonu gereklidir.');
+      }
+      const due = new Date();
+      due.setMonth(due.getMonth() + 1);
+      setCustomers(prev => prev.map(c => c.id === customer.id ? {
+        ...c,
+        totalDebt: c.totalDebt + creditAmount,
+        installments: [...c.installments, {
+          id: `ins-${Date.now()}-pos`,
+          dueDate: due.toISOString().split('T')[0],
+          amount: creditAmount,
+          paidAmount: 0,
+          isPaid: false,
+          description: `${receiptNo} POS veresiye satış`
+        }]
+      } : c));
+    }
 
     // 6. Kasa hareketi kaydet. Karma ödemede her tahsilat kanalı ayrı hareket olur.
     if (paymentMethod === 'karma') {
