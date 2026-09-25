@@ -39,3 +39,20 @@ Kod seviyesi testler Vitest için eklenmiştir. GitHub bağlantısı bu çalış
 
 ## Not
 OCR tarafı ürün eşleştirme motoru olarak hazırlanmıştır. Gerçek kamera karesinden OCR çıkarımı için istemci tarafı OCR veya kontrollü sunucu görüntü işleme katmanı ayrıca bağlanmalıdır; mevcut barkod satış akışı bundan bağımsız çalışır.
+
+
+## Final Teknik Durum
+
+- POS kamera barkod eşleştirmesi yalnızca kesin barkod/stok kodu üzerinden yapılır.
+- OCR etiketi gerçek cihaz kamerasından yakalanır, sunucu tarafındaki Gemini OCR uç noktasına gönderilir ve stok adayları kullanıcı onayıyla seçilir.
+- Stok sayım farkları `sayim_farki` hareketi olarak kaydedilir.
+- Kamera ile mal alış mevcut stokta `giris` hareketi oluşturur; bilinmeyen barkod yeni stok kartı taslağına yönlenir.
+- Karma ödeme nakit/kart/havale/veresiye olarak ayrıştırılır; ödeme toplamı state değişikliğinden önce doğrulanır.
+- Veresiye tutarı kayıtlı müşteri carisine işlenir; satış iptalinde açık borç ve tahsil edilmiş ödeme kanalları ters kaydedilir.
+- Manuel ürün barkodu gerçek stok kartını yanlışlıkla düşüremez; stok yalnızca `stockId` ile azalır.
+- Satış slipi 58 mm ve 80 mm baskı düzenini, ara toplam/iskonto/toplam ve karma ödeme kırılımını destekler.
+- Son fiziksel kabul: gerçek iOS/Android kamera izni, OCR görüntü kalitesi ve gerçek 58 mm termal yazıcı çıktısı CI ortamında doğrulanamaz; cihaz üzerinde kontrol edilmelidir.
+
+### CI
+
+Final aday dalında TypeScript, Vitest ve production build GitHub Actions ile doğrulanır. Fiziksel donanım kabulü ayrı tutulur.
