@@ -857,6 +857,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     const nowStr = new Date().toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
     const receiptNo = `SAL-${new Date().getFullYear()}-${String(sales.length + 15).padStart(3, '0')}`;
+    const normalizedSplitPayments: SaleRecord['splitPayments'] | undefined = paymentMethod === 'karma' ? {
+      nakit: Math.max(0, Number(splitPayments?.nakit || 0)),
+      kart: Math.max(0, Number(splitPayments?.kart || 0)),
+      havale: Math.max(0, Number(splitPayments?.havale || 0)),
+      veresiye: Math.max(0, Number(splitPayments?.veresiye || 0))
+    } : undefined;
 
     const newSale: SaleRecord = {
       id: `sal-${Date.now()}`,
@@ -867,7 +873,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       discountAmount,
       total,
       paymentMethod,
-      splitPayments,
+      splitPayments: normalizedSplitPayments,
       customerName: customerName || 'Perakende Müşteri',
       customerPhone,
       cashierName: currentUser.name,
@@ -910,7 +916,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
 
     // Veresiye tutarı varsa kayıtlı müşteri carisine otomatik borç yaz.
-    const creditAmount = paymentMethod === 'veresiye' ? total : paymentMethod === 'karma' ? (splitPayments?.veresiye || 0) : 0;
+    const creditAmount = paymentMethod === 'veresiye' ? total : paymentMethod === 'karma' ? (normalizedSplitPayments?.veresiye || 0) : 0;
     if (creditAmount > 0) {
       const normalizedPhone = (customerPhone || '').replace(/\D/g, '');
       const customer = customers.find(c => c.phone.replace(/\D/g, '') === normalizedPhone);
@@ -935,7 +941,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // 6. Kasa hareketi kaydet. Karma ödemede her tahsilat kanalı ayrı hareket olur.
     if (paymentMethod === 'karma') {
-      const parts = splitPayments || {};
+      const parts = normalizedSplitPayments || {};
       const cashParts = [
         ['nakit', parts.nakit || 0],
         ['kart', parts.kart || 0],
