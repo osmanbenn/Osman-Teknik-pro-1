@@ -955,10 +955,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     });
 
-    // 3. Kasa ters kaydı
-    setCashMovements(prev => [
-      {
-        id: `cm-${Date.now()}`,
+    // 3. Kasa ters kaydı: yalnızca gerçekten tahsil edilmiş ödeme kanallarını geri çıkar.
+    if (sale.paymentMethod === 'karma') {
+      const cashParts = [
+        ['nakit', sale.splitPayments?.nakit || 0],
+        ['kart', sale.splitPayments?.kart || 0],
+        ['havale', sale.splitPayments?.havale || 0]
+      ] as const;
+      cashParts.filter(([, amount]) => amount > 0).forEach(([method, amount], index) => {
+        setCashMovements(prev => [{
+          id: `cm-${Date.now()}-cancel-${index}`,
+          type: 'gider',
+          amount,
+          method,
+          category: 'Satış İptali (Karma İade)',
+          description: `${sale.receiptNo} no satış iptal edildi: ${reason}`,
+          user: currentUser.name,
+          timestamp: nowStr
+        }, ...prev]);
+      });
+    } else if (sale.paymentMethod !== 'veresiye') {
+      setCashMovements(prev => [{
+        id: `cm-${Date.now()}-cancel`,
         type: 'gider',
         amount: sale.total,
         method: sale.paymentMethod === 'nakit' ? 'nakit' : sale.paymentMethod === 'kart' ? 'kart' : 'havale',
@@ -966,9 +984,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         description: `${sale.receiptNo} no satış iptal edildi: ${reason}`,
         user: currentUser.name,
         timestamp: nowStr
-      },
-      ...prev
-    ]);
+      }, ...prev]);
+    }
+
+    // 4. Veresiye kısmını müşteri carisinden ters kayıtla kaldır.
+    const creditAmount = sale.paymentMethod === 'veresiye'
+      ? sale.total
+      : sale.paymentMethod === 'karma'
+        ? (sale.splitPayments?.veresiye || 0)
+        : 0;
+    if (creditAmount > 0 && sale.customerPhone) {
+      const normalizedPhone = sale.customerPhone.replace(/\D/g, '');
+      setCustomers(prev => prev.map(customer => {
+        if (customer.phone.replace(/\D/g, '') !== normalizedPhone) return customer;
+        const matchingInstallments = customer.installments.filter(ins => ins.description.includes(sale.receiptNo));
+        const removableDebt = matchingInstallments.reduce((sum, ins) => sum + Math.max(0, ins.amount - ins.paidAmount), 0);
+        return {
+          ...customer,
+          totalDebt: Math.max(0, customer.totalDebt - Math.min(creditAmount, removableDebt)),
+          installments: customer.installments.filter(ins => !ins.description.includes(sale.receiptNo))
+        };
+      }));
+    }
 
     return true;
   };
