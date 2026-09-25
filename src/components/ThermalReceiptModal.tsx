@@ -33,7 +33,13 @@ export const ThermalReceiptModal: React.FC<ThermalReceiptModalProps> = ({
   const is58 = printerWidth === '58mm';
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+    <div id="thermal-print-modal" className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+      <style>{`@media print {
+        body * { visibility: hidden !important; }
+        #printable-thermal-receipt, #printable-thermal-receipt * { visibility: visible !important; }
+        #printable-thermal-receipt { position: absolute !important; left: 0 !important; top: 0 !important; width: ${printerWidth} !important; max-width: ${printerWidth} !important; margin: 0 !important; padding: 2mm !important; border: 0 !important; box-shadow: none !important; border-radius: 0 !important; overflow: visible !important; }
+        @page { size: ${printerWidth} auto; margin: 0; }
+      }`}</style>
       <div className="bg-zinc-900 border border-zinc-700 rounded-2xl w-full max-w-lg p-4 sm:p-6 shadow-2xl animate-in fade-in zoom-in-95">
         {/* Header Controls */}
         <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
@@ -218,6 +224,10 @@ export const ThermalReceiptModal: React.FC<ThermalReceiptModalProps> = ({
                   ))}
                 </div>
                 <div className="border-t border-dotted border-zinc-300 my-1.5"></div>
+                <div className="space-y-0.5 text-[10px]">
+                  <div className="flex justify-between"><span>Ara Toplam:</span><span>₺{saleRecord.subtotal}</span></div>
+                  {saleRecord.discountAmount > 0 && <div className="flex justify-between"><span>İskonto (%{saleRecord.discountRate}):</span><span>-₺{saleRecord.discountAmount}</span></div>}
+                </div>
                 <div className="flex justify-between text-xs font-bold">
                   <span>TOPLAM TUTAR:</span>
                   <span className="text-sm">₺{saleRecord.total}</span>
