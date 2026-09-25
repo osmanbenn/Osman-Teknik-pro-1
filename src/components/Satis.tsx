@@ -316,6 +316,7 @@ export const Satis: React.FC = () => {
     setUseCustomDiscount(false);
     setCustomerName('');
     setCustomerPhone('');
+    setSplitPayments({ nakit: 0, kart: 0, havale: 0, veresiye: 0 });
   };
 
   // Satış İptal
@@ -354,6 +355,10 @@ export const Satis: React.FC = () => {
         return;
       }
 
+      if (requestedMethod === 'karma') {
+        alert('Karma ödeme için POS ekranındaki ödeme dağılımını girip Satışı Tamamla butonunu kullanın.');
+        return;
+      }
       const sale = completeSale(
         requestedMethod,
         calculatedDiscountRate,
