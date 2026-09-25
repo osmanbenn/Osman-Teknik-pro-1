@@ -22,12 +22,17 @@ import { useApp } from '../context/AppContext';
 import { StockItem } from '../types';
 import { CameraScannerModal } from './CameraScannerModal';
 import { WholesaleOrderModal } from './WholesaleOrderModal';
+import { StockCountModal } from './StockCountModal';
+import { PurchaseCameraModal } from './PurchaseCameraModal';
+import { resolveScan } from '../utils/smartScan';
 
 export const Stok: React.FC = () => {
   const {
     stock,
     addStockItem,
     updateStockItem,
+    receiveStockPurchase,
+    applyStockCount,
     deactivateStockItem,
     importStockBatch,
     stockMovements,
@@ -45,6 +50,8 @@ export const Stok: React.FC = () => {
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [scannerTarget, setScannerTarget] = useState<'search' | 'add'>('search');
   const [isOrderRobotOpen, setIsOrderRobotOpen] = useState(false);
+  const [isStockCountOpen, setIsStockCountOpen] = useState(false);
+  const [isPurchaseCameraOpen, setIsPurchaseCameraOpen] = useState(false);
   const [scannedNotFoundBarcode, setScannedNotFoundBarcode] = useState<string | null>(null);
   const [stockToast, setStockToast] = useState<{ message: string; type: 'success' | 'warning' | 'info' } | null>(null);
 
@@ -77,9 +84,8 @@ export const Stok: React.FC = () => {
 
     // Arama / Sorgulama Modu
     setSearchTerm(clean);
-    const matched = stock.find(
-      s => s.isActive && (s.barcode === clean || s.stockCode.toLowerCase() === clean.toLowerCase() || s.name.toLowerCase().includes(clean.toLowerCase()))
-    );
+    const scanResult = resolveScan(clean, stock);
+    const matched = scanResult.product;
 
     if (matched) {
       setStockToast({
@@ -198,6 +204,16 @@ export const Stok: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
+          <button onClick={() => setIsPurchaseCameraOpen(true)} className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs px-3.5 py-2.5 rounded-xl flex items-center gap-1.5">
+            <Camera size={15} /><span>Mal Alış Kamera</span>
+          </button>
+          <button
+            onClick={() => setIsStockCountOpen(true)}
+            className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-3.5 py-2.5 rounded-xl flex items-center gap-1.5"
+          >
+            <Barcode size={15} />
+            <span>Stok Sayım</span>
+          </button>
           <button
             onClick={() => {
               setScannerTarget('search');
@@ -721,6 +737,37 @@ export const Stok: React.FC = () => {
           </div>
         </div>
       )}
+
+      <PurchaseCameraModal
+        isOpen={isPurchaseCameraOpen}
+        stock={stock}
+        onClose={() => setIsPurchaseCameraOpen(false)}
+        onReceiveExisting={(product, qty, newCostUsd, supplier) => {
+          receiveStockPurchase(product.id, qty, newCostUsd, supplier || product.supplierName);
+          setStockToast({ message: `✅ ${product.name}: +${qty} adet mal girişi yapıldı. Yeni stok ${product.quantity + qty}.`, type: 'success' });
+          setIsPurchaseCameraOpen(false);
+        }}
+        onCreateNew={(draft) => {
+          setBarcode(draft.barcode);
+          setQuantity(draft.quantity);
+          setCostUsd(draft.costUsd);
+          setSupplierName(draft.supplier);
+          setIsPurchaseCameraOpen(false);
+          setIsAddModalOpen(true);
+          setStockToast({ message: 'ℹ️ Yeni barkod için stok kartı taslağı hazırlandı. Ürün adı ve satış fiyatını tamamlayın.', type: 'info' });
+        }}
+      />
+
+      <StockCountModal
+        isOpen={isStockCountOpen}
+        stock={stock}
+        onClose={() => setIsStockCountOpen(false)}
+        onApply={(counts) => {
+          const changed = applyStockCount(counts);
+          setStockToast({ message: `✅ Stok sayımı uygulandı. ${changed} üründe sayım farkı hareketi oluşturuldu.`, type: 'success' });
+          setIsStockCountOpen(false);
+        }}
+      />
 
       {/* Kamera Barkod Tarayıcı Modalı */}
       <CameraScannerModal

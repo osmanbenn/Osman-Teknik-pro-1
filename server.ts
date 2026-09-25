@@ -18,7 +18,7 @@ app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'SAMEORIGIN');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  res.setHeader('Permissions-Policy', 'camera=(self), microphone=(self), geolocation=()');
 
   const key = String(req.ip || 'unknown');
   const now = Date.now();
@@ -140,6 +140,40 @@ async function generateContentWithResilience(params: {
 
   throw lastError;
 }
+
+// Product label OCR: image bytes stay server-side and are converted to compact text only.
+app.post('/api/gemini/product-ocr', async (req, res) => {
+  try {
+    const { imageBase64, mimeType = 'image/jpeg' } = req.body;
+    if (!imageBase64 || typeof imageBase64 !== 'string') {
+      return res.status(400).json({ error: 'Ürün etiketi görüntüsü gereklidir.' });
+    }
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(mimeType)) {
+      return res.status(400).json({ error: 'Desteklenmeyen görüntü biçimi.' });
+    }
+    const cleanBase64 = imageBase64.replace(/^data:image\/[a-zA-Z0-9.+-]+;base64,/, '');
+    if (cleanBase64.length > 8_000_000) {
+      return res.status(413).json({ error: 'Görüntü çok büyük. Daha yakın bir etiket fotoğrafı çekin.' });
+    }
+
+    const result = await generateContentWithResilience({
+      primaryModel: 'gemini-3.5-flash',
+      contents: [{
+        role: 'user',
+        parts: [
+          { text: 'Bu telefon/aksesuar kutusu veya ürün etiketindeki okunabilir ürün tanımlama metnini çıkar. Marka, model, kapasite, renk, parça türü ve ürün koduna öncelik ver. Tahmin etme. Yalnızca görüntüde açıkça görülen kısa metni düz metin olarak döndür.' },
+          { inlineData: { mimeType, data: cleanBase64 } }
+        ]
+      }],
+      config: { temperature: 0 }
+    });
+
+    res.json({ text: (result.response.text || '').trim(), model: result.usedModel });
+  } catch (err: any) {
+    console.error('Product OCR error:', err);
+    res.status(500).json({ error: err.message || 'Ürün etiketi okunamadı.' });
+  }
+});
 
 // 1. Multi-turn Gemini Chatbot with Role-Based System Instructions
 app.post('/api/gemini/chat', async (req, res) => {

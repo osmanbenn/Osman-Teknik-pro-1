@@ -50,6 +50,8 @@ interface AppContextType {
   stockMovements: StockMovement[];
   addStockItem: (item: Omit<StockItem, 'id' | 'createdAt' | 'updatedAt'>) => void;
   updateStockItem: (id: string, item: Partial<StockItem>) => void;
+  receiveStockPurchase: (id: string, quantity: number, costUsd: number, supplierName?: string) => boolean;
+  applyStockCount: (counts: Record<string, number>) => number;
   deactivateStockItem: (id: string) => boolean;
   importStockBatch: (items: Omit<StockItem, 'id' | 'createdAt' | 'updatedAt'>[]) => void;
   // POS & Satış
@@ -320,7 +322,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       stageHistory: [
         {
           stage: 'kabul',
-          updatedAt: nowStr,
+          updatedAt: new Date().toISOString().split('T')[0],
           updatedBy: currentUser.name,
           note: 'Cihaz kabul kaydı açıldı.'
         }
@@ -659,6 +661,52 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setStock(prev => prev.map(s => s.id === id ? { ...s, ...updates, updatedAt: nowStr } : s));
   };
 
+  const receiveStockPurchase = (id: string, quantity: number, costUsd: number, supplierName?: string): boolean => {
+    const item = stock.find(s => s.id === id);
+    const qty = Math.max(1, Math.floor(Number(quantity) || 0));
+    const unitCost = Math.max(0, Number(costUsd) || 0);
+    if (!item || !item.isActive || qty < 1) return false;
+    const nowStr = new Date().toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    setStock(prev => prev.map(s => s.id === id ? { ...s, quantity: s.quantity + qty, costUsd: unitCost, supplierName: supplierName || s.supplierName, updatedAt: new Date().toISOString().split('T')[0] } : s));
+    setStockMovements(prev => [{
+      id: `mov-${Date.now()}-purchase`, stockId: id, productName: item.name, type: 'giris', quantity: qty,
+      unitPrice: unitCost, referenceNo: `ALIS-${Date.now()}`, user: currentUser.name, timestamp: nowStr
+    }, ...prev]);
+    return true;
+  };
+
+  const applyStockCount = (counts: Record<string, number>): number => {
+    const changes = stock.flatMap(item => {
+      if (!item.isActive || counts[item.id] === undefined) return [];
+      const counted = Math.max(0, Math.floor(Number(counts[item.id]) || 0));
+      const difference = counted - item.quantity;
+      return difference === 0 ? [] : [{ item, counted, difference }];
+    });
+    if (!changes.length) return 0;
+    const isoDate = new Date().toISOString().split('T')[0];
+    const timestamp = new Date().toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    const ref = `SAYIM-${Date.now()}`;
+    setStock(prev => prev.map(item => {
+      const change = changes.find(ch => ch.item.id === item.id);
+      return change ? { ...item, quantity: change.counted, updatedAt: isoDate } : item;
+    }));
+    setStockMovements(prev => [
+      ...changes.map(({ item, difference }, index) => ({
+        id: `mov-${Date.now()}-count-${index}`,
+        stockId: item.id,
+        productName: item.name,
+        type: 'sayim_farki' as const,
+        quantity: difference,
+        unitPrice: item.salePriceTl,
+        referenceNo: ref,
+        user: currentUser.name,
+        timestamp
+      })),
+      ...prev
+    ]);
+    return changes.length;
+  };
+
   const deactivateStockItem = (id: string): boolean => {
     const item = stock.find(s => s.id === id);
     if (!item) return false;
@@ -788,8 +836,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const subtotal = cart.reduce((acc, it) => acc + (it.price * it.quantity), 0);
     const discountAmount = (subtotal * discountRate) / 100;
     const total = subtotal - discountAmount;
+
+    // Ödeme doğrulaması herhangi bir stok/kasa/cari state değişikliğinden önce yapılır.
+    if (paymentMethod === 'karma') {
+      const raw = splitPayments || {};
+      const values = [raw.nakit, raw.kart, raw.havale, raw.veresiye].map(value => Number(value || 0));
+      if (values.some(value => !Number.isFinite(value) || value < 0)) {
+        throw new Error('Karma ödeme tutarları geçerli ve negatif olmayan sayılar olmalıdır.');
+      }
+      const paidTotal = values.reduce((sum, value) => sum + value, 0);
+      if (Math.abs(paidTotal - total) > 0.01) {
+        throw new Error(`Karma ödeme toplamı satış tutarıyla eşleşmiyor. Beklenen ₺${total}, girilen ₺${paidTotal}.`);
+      }
+    }
+    const creditAmountToValidate = paymentMethod === 'veresiye' ? total : paymentMethod === 'karma' ? Number(splitPayments?.veresiye || 0) : 0;
+    if (creditAmountToValidate > 0) {
+      const normalizedPhone = (customerPhone || '').replace(/\D/g, '');
+      const customerExists = !!normalizedPhone && customers.some(customer => customer.phone.replace(/\D/g, '') === normalizedPhone);
+      if (!customerExists) throw new Error('Veresiye satış için kayıtlı müşteri telefonu gereklidir.');
+    }
     const nowStr = new Date().toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-    const receiptNo = `SAL-2026-${String(sales.length + 15).padStart(3, '0')}`;
+    const receiptNo = `SAL-${new Date().getFullYear()}-${String(sales.length + 15).padStart(3, '0')}`;
+    const normalizedSplitPayments: SaleRecord['splitPayments'] | undefined = paymentMethod === 'karma' ? {
+      nakit: Math.max(0, Number(splitPayments?.nakit || 0)),
+      kart: Math.max(0, Number(splitPayments?.kart || 0)),
+      havale: Math.max(0, Number(splitPayments?.havale || 0)),
+      veresiye: Math.max(0, Number(splitPayments?.veresiye || 0))
+    } : undefined;
 
     const newSale: SaleRecord = {
       id: `sal-${Date.now()}`,
@@ -800,7 +873,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       discountAmount,
       total,
       paymentMethod,
-      splitPayments,
+      splitPayments: normalizedSplitPayments,
       customerName: customerName || 'Perakende Müşteri',
       customerPhone,
       cashierName: currentUser.name,
@@ -809,7 +882,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // 4. Stok düşümü - Doğrulanmış stoktan tam adet düşülür, Math.max(0) ile gizlenmez
     setStock(prev => prev.map(s => {
-      const soldItem = cart.find(ci => ci.stockId === s.id || ci.barcode === s.barcode);
+      const soldItem = cart.find(ci => ci.stockId === s.id);
       if (soldItem) {
         const remainingQty = s.quantity - soldItem.quantity;
         return {
@@ -842,20 +915,55 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     });
 
-    // 6. Kasa hareketi kaydet (Nakit / Kart / Havale)
-    setCashMovements(prev => [
-      {
-        id: `cm-${Date.now()}`,
-        type: 'gelir_satis',
-        amount: total,
+    // Veresiye tutarı varsa kayıtlı müşteri carisine otomatik borç yaz.
+    const creditAmount = paymentMethod === 'veresiye' ? total : paymentMethod === 'karma' ? (normalizedSplitPayments?.veresiye || 0) : 0;
+    if (creditAmount > 0) {
+      const normalizedPhone = (customerPhone || '').replace(/\D/g, '');
+      const customer = customers.find(c => c.phone.replace(/\D/g, '') === normalizedPhone);
+      if (!customer || !normalizedPhone) {
+        throw new Error('Veresiye satış için kayıtlı müşteri telefonu gereklidir.');
+      }
+      const due = new Date();
+      due.setMonth(due.getMonth() + 1);
+      setCustomers(prev => prev.map(c => c.id === customer.id ? {
+        ...c,
+        totalDebt: c.totalDebt + creditAmount,
+        installments: [...c.installments, {
+          id: `ins-${Date.now()}-pos`,
+          dueDate: due.toISOString().split('T')[0],
+          amount: creditAmount,
+          paidAmount: 0,
+          isPaid: false,
+          description: `${receiptNo} POS veresiye satış`
+        }]
+      } : c));
+    }
+
+    // 6. Kasa hareketi kaydet. Karma ödemede her tahsilat kanalı ayrı hareket olur.
+    if (paymentMethod === 'karma') {
+      const parts = normalizedSplitPayments || {};
+      const cashParts = [
+        ['nakit', parts.nakit || 0],
+        ['kart', parts.kart || 0],
+        ['havale', parts.havale || 0]
+      ] as const;
+      cashParts.filter(([, amount]) => amount > 0).forEach(([method, amount], index) => {
+        setCashMovements(prev => [{
+          id: `cm-${Date.now()}-${index}`, type: 'gelir_satis', amount, method,
+          category: 'Hızlı Satış / POS - Karma',
+          description: `${receiptNo} karma ödeme (${customerName || 'Perakende'})`,
+          user: currentUser.name, timestamp: nowStr
+        }, ...prev]);
+      });
+    } else if (paymentMethod !== 'veresiye') {
+      setCashMovements(prev => [{
+        id: `cm-${Date.now()}`, type: 'gelir_satis', amount: total,
         method: paymentMethod === 'nakit' ? 'nakit' : paymentMethod === 'kart' ? 'kart' : 'havale',
         category: 'Hızlı Satış / POS',
         description: `${receiptNo} no perakende satış (${customerName || 'Perakende'})`,
-        user: currentUser.name,
-        timestamp: nowStr
-      },
-      ...prev
-    ]);
+        user: currentUser.name, timestamp: nowStr
+      }, ...prev]);
+    }
 
     setSales(prev => [newSale, ...prev]);
     clearCart();
@@ -901,10 +1009,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     });
 
-    // 3. Kasa ters kaydı
-    setCashMovements(prev => [
-      {
-        id: `cm-${Date.now()}`,
+    // 3. Kasa ters kaydı: yalnızca gerçekten tahsil edilmiş ödeme kanallarını geri çıkar.
+    if (sale.paymentMethod === 'karma') {
+      const cashParts = [
+        ['nakit', sale.splitPayments?.nakit || 0],
+        ['kart', sale.splitPayments?.kart || 0],
+        ['havale', sale.splitPayments?.havale || 0]
+      ] as const;
+      cashParts.filter(([, amount]) => amount > 0).forEach(([method, amount], index) => {
+        setCashMovements(prev => [{
+          id: `cm-${Date.now()}-cancel-${index}`,
+          type: 'gider',
+          amount,
+          method,
+          category: 'Satış İptali (Karma İade)',
+          description: `${sale.receiptNo} no satış iptal edildi: ${reason}`,
+          user: currentUser.name,
+          timestamp: nowStr
+        }, ...prev]);
+      });
+    } else if (sale.paymentMethod !== 'veresiye') {
+      setCashMovements(prev => [{
+        id: `cm-${Date.now()}-cancel`,
         type: 'gider',
         amount: sale.total,
         method: sale.paymentMethod === 'nakit' ? 'nakit' : sale.paymentMethod === 'kart' ? 'kart' : 'havale',
@@ -912,9 +1038,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         description: `${sale.receiptNo} no satış iptal edildi: ${reason}`,
         user: currentUser.name,
         timestamp: nowStr
-      },
-      ...prev
-    ]);
+      }, ...prev]);
+    }
+
+    // 4. Veresiye kısmını müşteri carisinden ters kayıtla kaldır.
+    const creditAmount = sale.paymentMethod === 'veresiye'
+      ? sale.total
+      : sale.paymentMethod === 'karma'
+        ? (sale.splitPayments?.veresiye || 0)
+        : 0;
+    if (creditAmount > 0 && sale.customerPhone) {
+      const normalizedPhone = sale.customerPhone.replace(/\D/g, '');
+      setCustomers(prev => prev.map(customer => {
+        if (customer.phone.replace(/\D/g, '') !== normalizedPhone) return customer;
+        const matchingInstallments = customer.installments.filter(ins => ins.description.includes(sale.receiptNo));
+        const removableDebt = matchingInstallments.reduce((sum, ins) => sum + Math.max(0, ins.amount - ins.paidAmount), 0);
+        return {
+          ...customer,
+          totalDebt: Math.max(0, customer.totalDebt - Math.min(creditAmount, removableDebt)),
+          installments: customer.installments.filter(ins => !ins.description.includes(sale.receiptNo))
+        };
+      }));
+    }
 
     return true;
   };
@@ -1204,6 +1349,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         stockMovements,
         addStockItem,
         updateStockItem,
+        receiveStockPurchase,
+        applyStockCount,
         deactivateStockItem,
         importStockBatch,
         cart,
