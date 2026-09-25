@@ -836,8 +836,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const subtotal = cart.reduce((acc, it) => acc + (it.price * it.quantity), 0);
     const discountAmount = (subtotal * discountRate) / 100;
     const total = subtotal - discountAmount;
+
+    // Ödeme doğrulaması herhangi bir stok/kasa/cari state değişikliğinden önce yapılır.
+    if (paymentMethod === 'karma') {
+      const raw = splitPayments || {};
+      const values = [raw.nakit, raw.kart, raw.havale, raw.veresiye].map(value => Number(value || 0));
+      if (values.some(value => !Number.isFinite(value) || value < 0)) {
+        throw new Error('Karma ödeme tutarları geçerli ve negatif olmayan sayılar olmalıdır.');
+      }
+      const paidTotal = values.reduce((sum, value) => sum + value, 0);
+      if (Math.abs(paidTotal - total) > 0.01) {
+        throw new Error(`Karma ödeme toplamı satış tutarıyla eşleşmiyor. Beklenen ₺${total}, girilen ₺${paidTotal}.`);
+      }
+    }
+    const creditAmountToValidate = paymentMethod === 'veresiye' ? total : paymentMethod === 'karma' ? Number(splitPayments?.veresiye || 0) : 0;
+    if (creditAmountToValidate > 0) {
+      const normalizedPhone = (customerPhone || '').replace(/\D/g, '');
+      const customerExists = !!normalizedPhone && customers.some(customer => customer.phone.replace(/\D/g, '') === normalizedPhone);
+      if (!customerExists) throw new Error('Veresiye satış için kayıtlı müşteri telefonu gereklidir.');
+    }
     const nowStr = new Date().toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-    const receiptNo = `SAL-2026-${String(sales.length + 15).padStart(3, '0')}`;
+    const receiptNo = `SAL-${new Date().getFullYear()}-${String(sales.length + 15).padStart(3, '0')}`;
 
     const newSale: SaleRecord = {
       id: `sal-${Date.now()}`,
@@ -917,10 +936,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // 6. Kasa hareketi kaydet. Karma ödemede her tahsilat kanalı ayrı hareket olur.
     if (paymentMethod === 'karma') {
       const parts = splitPayments || {};
-      const paidTotal = (parts.nakit || 0) + (parts.kart || 0) + (parts.havale || 0) + (parts.veresiye || 0);
-      if (Math.abs(paidTotal - total) > 0.01) {
-        throw new Error(`Karma ödeme toplamı satış tutarıyla eşleşmiyor. Beklenen ₺${total}, girilen ₺${paidTotal}.`);
-      }
       const cashParts = [
         ['nakit', parts.nakit || 0],
         ['kart', parts.kart || 0],
