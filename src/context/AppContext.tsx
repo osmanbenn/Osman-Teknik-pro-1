@@ -51,6 +51,7 @@ interface AppContextType {
   addStockItem: (item: Omit<StockItem, 'id' | 'createdAt' | 'updatedAt'>) => void;
   updateStockItem: (id: string, item: Partial<StockItem>) => void;
   receiveStockPurchase: (id: string, quantity: number, costUsd: number, supplierName?: string) => boolean;
+  applyStockCount: (counts: Record<string, number>) => number;
   deactivateStockItem: (id: string) => boolean;
   importStockBatch: (items: Omit<StockItem, 'id' | 'createdAt' | 'updatedAt'>[]) => void;
   // POS & Satış
@@ -672,6 +673,38 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       unitPrice: unitCost, referenceNo: `ALIS-${Date.now()}`, user: currentUser.name, timestamp: nowStr
     }, ...prev]);
     return true;
+  };
+
+  const applyStockCount = (counts: Record<string, number>): number => {
+    const changes = stock.flatMap(item => {
+      if (!item.isActive || counts[item.id] === undefined) return [];
+      const counted = Math.max(0, Math.floor(Number(counts[item.id]) || 0));
+      const difference = counted - item.quantity;
+      return difference === 0 ? [] : [{ item, counted, difference }];
+    });
+    if (!changes.length) return 0;
+    const isoDate = new Date().toISOString().split('T')[0];
+    const timestamp = new Date().toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    const ref = `SAYIM-${Date.now()}`;
+    setStock(prev => prev.map(item => {
+      const change = changes.find(ch => ch.item.id === item.id);
+      return change ? { ...item, quantity: change.counted, updatedAt: isoDate } : item;
+    }));
+    setStockMovements(prev => [
+      ...changes.map(({ item, difference }, index) => ({
+        id: `mov-${Date.now()}-count-${index}`,
+        stockId: item.id,
+        productName: item.name,
+        type: 'sayim_farki' as const,
+        quantity: difference,
+        unitPrice: item.salePriceTl,
+        referenceNo: ref,
+        user: currentUser.name,
+        timestamp
+      })),
+      ...prev
+    ]);
+    return changes.length;
   };
 
   const deactivateStockItem = (id: string): boolean => {
@@ -1296,6 +1329,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addStockItem,
         updateStockItem,
         receiveStockPurchase,
+        applyStockCount,
         deactivateStockItem,
         importStockBatch,
         cart,
