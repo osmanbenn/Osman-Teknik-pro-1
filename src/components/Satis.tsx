@@ -1190,7 +1190,7 @@ export const Satis: React.FC = () => {
                     ))}
                     <div className="col-span-2 flex justify-between text-[11px] font-bold">
                       <span className="text-zinc-400">Dağıtılan:</span>
-                      <span className={Math.abs(Object.values(splitPayments).reduce((a,b)=>a+b,0)-finalTotal) < 0.01 ? 'text-emerald-400' : 'text-amber-400'}>₺{Object.values(splitPayments).reduce((a,b)=>a+b,0)} / ₺{finalTotal}</span>
+                      <span className={Math.abs(Object.values(splitPayments).reduce<number>((a,b)=>a+Number(b),0)-finalTotal) < 0.01 ? 'text-emerald-400' : 'text-amber-400'}>₺{Object.values(splitPayments).reduce<number>((a,b)=>a+Number(b),0)} / ₺{finalTotal}</span>
                     </div>
                   </div>
                 )}
@@ -1216,7 +1216,7 @@ export const Satis: React.FC = () => {
 
               <button
                 id="btn-complete-sale"
-                disabled={cart.length === 0 || (paymentMethod === 'karma' && Math.abs(Object.values(splitPayments).reduce((a,b)=>a+b,0)-finalTotal) >= 0.01)}
+                disabled={cart.length === 0 || (paymentMethod === 'karma' && Math.abs(Object.values(splitPayments).reduce<number>((a,b)=>a+Number(b),0)-finalTotal) >= 0.01)}
                 onClick={handleCompleteSale}
                 className={`w-full py-3.5 rounded-2xl font-black text-sm flex items-center justify-center gap-2 shadow-xl transition-all cursor-pointer ${
                   cart.length > 0
