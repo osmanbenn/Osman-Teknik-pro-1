@@ -260,8 +260,7 @@ export const ThermalReceiptModal: React.FC<ThermalReceiptModalProps> = ({
             {serviceRecord && settings.printQrCode !== false && (
               <div className="py-2.5 text-center flex flex-col items-center justify-center border-b border-dashed border-zinc-400">
                 <div dangerouslySetInnerHTML={{ __html: generateSvgQrCode(serviceRecord.serviceNo, is58 ? 85 : 100) }} />
-                <p className="text-[9px] font-sans text-zinc-600 mt-1">Cihaz Durumunu Buradan Sorgulayın</p>
-                <p className="text-[8px] font-mono text-zinc-500">https://osmanteknik.com/takip/{serviceRecord.qrToken}</p>
+                <p className="text-[9px] font-sans text-zinc-600 mt-1">Servis No: {serviceRecord.serviceNo}</p>
               </div>
             )}
 

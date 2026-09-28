@@ -1,5 +1,6 @@
 // Osman Teknik Pro - Güvenlik, Doğrulama ve Belge Yardımcıları
 import { ServiceRecord } from '../types';
+import qrcode from 'qrcode-generator';
 
 // 1. 15 Haneli IMEI Luhn Doğrulama
 export function validateImei(imei: string): { isValid: boolean; message: string } {
@@ -109,49 +110,19 @@ export async function addWatermarkToImage(file: File, watermarkText = 'OSMAN TEK
   });
 }
 
-// 5. Bağımsız SVG QR Kod Üreteci (Harici kütüphane ihtiyacı olmadan vektörel QR görünümü)
+export function createTrackingToken(): string {
+  const bytes = new Uint8Array(32);
+  globalThis.crypto.getRandomValues(bytes);
+  return `qtk_${Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('')}`;
+}
+
+// 5. Taranabilir QR kodu, verilen metni birebir kodlar.
 export function generateSvgQrCode(data: string, size = 120): string {
-  // Görsel QR kod temsili (Müşteri için taranabilir format ve token hash)
-  const hash = data.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-  const matrixSize = 21;
-  const cellSize = size / matrixSize;
-
-  let rects = '';
-  // Köşe tespit kareleri
-  const addCorner = (x: number, y: number) => {
-    return `
-      <rect x="${x * cellSize}" y="${y * cellSize}" width="${7 * cellSize}" height="${7 * cellSize}" fill="#000000" />
-      <rect x="${(x + 1) * cellSize}" y="${(y + 1) * cellSize}" width="${5 * cellSize}" height="${5 * cellSize}" fill="#ffffff" />
-      <rect x="${(x + 2) * cellSize}" y="${(y + 2) * cellSize}" width="${3 * cellSize}" height="${3 * cellSize}" fill="#ff6b00" />
-    `;
-  };
-
-  rects += addCorner(0, 0);
-  rects += addCorner(14, 0);
-  rects += addCorner(0, 14);
-
-  // Veri hücreleri simülasyonu
-  for (let r = 0; r < matrixSize; r++) {
-    for (let c = 0; c < matrixSize; c++) {
-      if (
-        (r < 8 && c < 8) ||
-        (r < 8 && c >= 13) ||
-        (r >= 13 && c < 8)
-      ) {
-        continue;
-      }
-      const isFilled = ((r * 13 + c * 17 + hash) % 3) === 0;
-      if (isFilled) {
-        rects += `<rect x="${c * cellSize}" y="${r * cellSize}" width="${cellSize * 0.95}" height="${cellSize * 0.95}" fill="#18181b" />`;
-      }
-    }
-  }
-
-  return `
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" class="bg-white p-1 rounded-lg shadow-xs">
-      ${rects}
-    </svg>
-  `;
+  const qr = qrcode(0, 'M');
+  qr.addData(data);
+  qr.make();
+  return qr.createSvgTag({ cellSize: 2, margin: 8, scalable: true })
+    .replace('<svg ', `<svg width="${Math.max(32, Math.floor(size))}" height="${Math.max(32, Math.floor(size))}" `);
 }
 
 // 6. Güvenli WhatsApp Mesaj Taslakları
@@ -180,8 +151,7 @@ export function createSafeWhatsAppMessage(
       `*${data.deviceModel}* cihazınız servisimize kabul edilmiştir.\n` +
       `Servis Takip No: *${data.serviceNo}*\n` +
       `Tahmini Tutar: *${data.totalAmount ? '₺' + data.totalAmount : 'Arıza tespitinden sonra iletilecektir'}*\n\n` +
-      `Cihazınızın güncel onarım durumunu aşağıdaki güvenli bağlantıdan takip edebilirsiniz:\n` +
-      `https://osmanteknik.com/takip/${data.token || data.serviceNo}\n\n` +
+      `Cihazınızın güncel durumunu servis numaranızla mağazamızdan sorgulayabilirsiniz.\n\n` +
       `Teşekkür eder, iyi günler dileriz.\n*${firm}* • ${phone}`
     );
   }
@@ -194,7 +164,7 @@ export function createSafeWhatsAppMessage(
       `Tespit Edilen Durum: ${data.issueComplaint || 'Donanım/parça arızası'}\n` +
       `Onarım ve Parça Bedeli: *₺${data.totalAmount || 0}*\n\n` +
       `Onay vermeniz halinde teknisyenlerimiz onarım işlemine hemen başlayacaktır. Onaylıyor musunuz?\n\n` +
-      `Takip Linki: https://osmanteknik.com/takip/${data.token || data.serviceNo}\n` +
+      `Servis Takip No: ${data.serviceNo}\n` +
       `*${firm}* • ${phone}`
     );
   }
@@ -205,7 +175,7 @@ export function createSafeWhatsAppMessage(
       `*${data.deviceModel}* cihazınız için gereken orijinal/A-kalite yedek parça sipariş edilmiş olup tedarik sürecindedir.\n` +
       `Servis No: *${data.serviceNo}*\n` +
       `Parça atölyemize ulaştığı anda montaj ve test işlemleri tamamlanıp tarafınıza bilgi verilecektir.\n\n` +
-      `Takip Linki: https://osmanteknik.com/takip/${data.token || data.serviceNo}\n` +
+      `Servis Takip No: ${data.serviceNo}\n` +
       `*${firm}* • ${phone}`
     );
   }
