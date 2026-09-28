@@ -3,7 +3,9 @@ import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
 
-if ('serviceWorker' in navigator && location.protocol !== 'http:' || ('serviceWorker' in navigator && location.hostname === 'localhost')) {
+const canRegisterServiceWorker = 'serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost');
+
+if (canRegisterServiceWorker) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js').catch((error) => {
       console.error('Service worker registration failed:', error);
