@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { StockItem } from '../types';
-import { normalizeScanCode, rankProductsFromOcr, resolveScan, stockCountDifference } from '../utils/smartScan';
+import { canAddStockToCart, normalizeScanCode, rankProductsFromOcr, resolveScan, stockCountDifference } from '../utils/smartScan';
 
 const stock: StockItem[] = [
   { id:'1', barcode:'8690012345678', stockCode:'INF-N50P-12256', name:'Infinix Note 50 Pro+ 12/256 Titanium Gray', category:'Telefon', quantity:4, minStock:1, costUsd:500, salePriceTl:25999, supplierName:'Test', isActive:true, createdAt:'2026-09-22', updatedAt:'2026-09-22' },
@@ -10,6 +10,15 @@ const stock: StockItem[] = [
 describe('akıllı kamera satış ve sayım motoru', () => {
   it('barkodu normalize eder', () => expect(normalizeScanCode(' 8690 012345678 ')).toBe('8690012345678'));
   it('aktif ürünü barkoddan bulur', () => expect(resolveScan('8690012345678', stock).status).toBe('found'));
+  it('stok kodunda boşluğu ve ASCII I harfini doğru eşler', () => {
+    expect(resolveScan('inf-n50p - 12256', stock).product?.id).toBe('1');
+    expect(resolveScan('INF-N50P-12256', stock).product?.id).toBe('1');
+  });
+  it('tekrarlı barkod okutma stok miktarını aşınca eklemeyi reddeder', () => {
+    const product = { ...stock[0], quantity: 1 };
+    expect(canAddStockToCart(product, [])).toBe(true);
+    expect(canAddStockToCart(product, [{ id: product.id, stockId: product.id, name: product.name, price: 100, quantity: 1 }])).toBe(false);
+  });
   it('stok sıfır ürünü satış için out_of_stock döndürür ama ürünü tanır', () => {
     const result = resolveScan('8690099999999', stock);
     expect(result.status).toBe('out_of_stock');

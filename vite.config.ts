@@ -4,6 +4,32 @@ import fs from 'fs';
 import path from 'path';
 import {defineConfig, Plugin} from 'vite';
 
+function staticPwaWorker(): Plugin {
+  return {
+    name: 'static-pwa-worker',
+    apply: 'build',
+    generateBundle(_options, bundle) {
+      const files = ['/', '/index.html', '/manifest.webmanifest', '/icon-192.png', '/icon-512.png', '/apple-touch-icon.png',
+        ...Object.keys(bundle).filter(file => file.startsWith('assets/')).map(file => `/${file}`)];
+      const source = `const CACHE = 'osman-static-${Date.now()}';\n` +
+        `const STATIC = ${JSON.stringify(files)};\n` +
+        `self.addEventListener('install', event => event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(STATIC)).then(() => self.skipWaiting())));\n` +
+        `self.addEventListener('activate', event => event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(key => key.startsWith('osman-static-') && key !== CACHE).map(key => caches.delete(key)))).then(() => self.clients.claim())));\n` +
+        `self.addEventListener('fetch', event => {\n` +
+        `  if (event.request.method !== 'GET') return;\n` +
+        `  const url = new URL(event.request.url);\n` +
+        `  if (url.origin !== self.location.origin) return;\n` +
+        `  if (event.request.mode === 'navigate') {\n` +
+        `    event.respondWith(fetch(event.request).catch(() => caches.match('/index.html')));\n` +
+        `    return;\n` +
+        `  }\n` +
+        `  if (STATIC.includes(url.pathname)) event.respondWith(caches.match(event.request).then(hit => hit || fetch(event.request)));\n` +
+        `});\n`;
+      this.emitFile({ type: 'asset', fileName: 'sw.js', source });
+    },
+  };
+}
+
 // LINT.IfChange(aistudio_media_plugin)
 function aistudioMediaPlugin(): Plugin {
   return {
@@ -66,7 +92,7 @@ function aistudioMediaPlugin(): Plugin {
 
 export default defineConfig(() => {
   return {
-    plugins: [react(), tailwindcss(), aistudioMediaPlugin()],
+    plugins: [react(), tailwindcss(), aistudioMediaPlugin(), staticPwaWorker()],
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
