@@ -32,7 +32,7 @@ import { StockItem, PaymentMethod, SaleRecord, CartItem } from '../types';
 import { ThermalReceiptModal } from './ThermalReceiptModal';
 import { CameraScannerModal } from './CameraScannerModal';
 import { SmartOcrProductModal } from './SmartOcrProductModal';
-import { resolveScan } from '../utils/smartScan';
+import { canAddStockToCart, resolveScan } from '../utils/smartScan';
 
 export const Satis: React.FC = () => {
   const {
@@ -212,6 +212,10 @@ export const Satis: React.FC = () => {
     if (!resolution.code) return;
 
     if (resolution.status === 'found' && resolution.product) {
+      if (!canAddStockToCart(resolution.product, cart)) {
+        setScanToast({ message: `⚠️ "${resolution.product.name}" için stok sınırına ulaşıldı.`, type: 'warning' });
+        return;
+      }
       addToCart(resolution.product);
       playBeep();
       setScanToast({
@@ -1294,6 +1298,10 @@ export const Satis: React.FC = () => {
         stock={stock}
         onClose={() => setIsOcrProductOpen(false)}
         onConfirm={(product) => {
+          if (!canAddStockToCart(product, cart)) {
+            setScanToast({ message: `⚠️ "${product.name}" için stok sınırına ulaşıldı.`, type: 'warning' });
+            return;
+          }
           addToCart(product);
           playBeep();
           setScanToast({ message: `✅ "${product.name}" OCR adayı onaylandı ve sepete eklendi.`, type: 'success' });

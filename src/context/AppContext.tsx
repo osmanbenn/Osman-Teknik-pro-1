@@ -27,6 +27,7 @@ import {
   initialAiLogs
 } from '../data/initialData';
 import { safeStorage } from '../utils/storage';
+import { canAddStockToCart } from '../utils/smartScan';
 
 interface AppContextType {
   currentUser: UserProfile;
@@ -729,7 +730,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // POS & Cart
   const addToCart = (product: StockItem | { id: string; name: string; price: number; quantity: number }) => {
     setCart(prev => {
-      const existing = prev.find(p => p.id === product.id || (product as StockItem).barcode === p.barcode);
+      const stockProduct = 'stockCode' in product ? product as StockItem : undefined;
+      const existing = prev.find(p => p.id === product.id || (stockProduct && p.stockId === stockProduct.id));
+      if (stockProduct && !canAddStockToCart(stockProduct, prev)) return prev;
       if (existing) {
         return prev.map(p => p.id === existing.id ? { ...p, quantity: p.quantity + 1 } : p);
       }
@@ -765,11 +768,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const updateCartItem = (id: string, updates: Partial<CartItem>) => {
     setCart(prev => prev.map(item => {
       if (item.id === id) {
+        const available = item.stockId ? stock.find(s => s.id === item.stockId)?.quantity : undefined;
         return {
           ...item,
           ...updates,
           price: updates.price !== undefined ? Math.max(0, Number(updates.price)) : item.price,
-          quantity: updates.quantity !== undefined ? Math.max(1, Number(updates.quantity)) : item.quantity
+          quantity: updates.quantity !== undefined
+            ? Math.min(available ?? Infinity, Math.max(1, Math.floor(Number(updates.quantity) || 1)))
+            : item.quantity
         };
       }
       return item;
@@ -779,7 +785,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const updateCartQuantity = (id: string, delta: number) => {
     setCart(prev => prev.map(item => {
       if (item.id === id) {
-        const newQty = item.quantity + delta;
+        const available = item.stockId ? stock.find(s => s.id === item.stockId)?.quantity : undefined;
+        const newQty = Math.min(available ?? Infinity, item.quantity + delta);
         return newQty > 0 ? { ...item, quantity: newQty } : item;
       }
       return item;

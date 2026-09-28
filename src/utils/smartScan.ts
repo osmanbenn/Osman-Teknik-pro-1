@@ -1,4 +1,4 @@
-import type { StockItem } from '../types';
+import type { CartItem, StockItem } from '../types';
 
 export type ScanStatus = 'found' | 'out_of_stock' | 'not_found';
 
@@ -12,6 +12,15 @@ export function normalizeScanCode(value: string): string {
   return value.trim().replace(/\s+/g, '');
 }
 
+function normalizeStockCode(value: string): string {
+  return normalizeScanCode(value).toUpperCase();
+}
+
+export function canAddStockToCart(product: StockItem, cart: CartItem[]): boolean {
+  const inCart = cart.filter(item => item.stockId === product.id).reduce((total, item) => total + item.quantity, 0);
+  return product.isActive && product.quantity > inCart;
+}
+
 export function resolveScan(code: string, stock: StockItem[]): ScanResolution {
   const clean = normalizeScanCode(code);
   if (!clean) return { status: 'not_found', code: clean };
@@ -19,7 +28,7 @@ export function resolveScan(code: string, stock: StockItem[]): ScanResolution {
   const product = stock.find(item =>
     item.isActive &&
     (normalizeScanCode(item.barcode || '') === clean ||
-      item.stockCode.toLocaleLowerCase('tr-TR') === clean.toLocaleLowerCase('tr-TR'))
+      normalizeStockCode(item.stockCode) === normalizeStockCode(clean))
   );
 
   if (!product) return { status: 'not_found', code: clean };
