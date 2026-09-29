@@ -1,0 +1,21 @@
+{
+  "hosting": {
+    "site": "osman-teknik-82cb3",
+    "public": "dist",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**",
+      "*.cjs",
+      "*.map",
+      "**/*.cjs",
+      "**/*.map"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  }
+}
