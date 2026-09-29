@@ -14,7 +14,7 @@ import {
   Database
 } from 'lucide-react';
 import { auth, onAuthStateChanged, User } from '../firebase';
-import { loginWithGoogle, logoutFirebase, pushAllToCloud, pullAllFromCloud, CloudSyncResult } from '../utils/firebaseSync';
+import { loginWithGoogle, logoutFirebase, pushAllToCloud, pullAllFromCloud, readAuthorizedRole, CloudSyncResult } from '../utils/firebaseSync';
 import { useApp } from '../context/AppContext';
 
 interface CloudSyncModalProps {
@@ -44,11 +44,32 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({ isOpen, onClose 
   const [isSuccess, setIsSuccess] = useState<boolean | null>(null);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    if (!isOpen) return;
+    let active = true;
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setCurrentUser(user);
+      if (!user) return;
+      try {
+        const role = await readAuthorizedRole(user);
+        if (!active) return;
+        setAppUser({
+          ...appUser,
+          id: user.uid,
+          name: user.displayName || appUser.name,
+          email: user.email || appUser.email,
+          role,
+          avatar: user.photoURL || appUser.avatar
+        });
+        setIsSuccess(true);
+        setStatusMessage(`Hoş geldiniz, ${user.displayName || user.email}! Rolünüz: ${role.toUpperCase()}`);
+      } catch (error) {
+        if (!active) return;
+        setIsSuccess(false);
+        setStatusMessage(`Giriş başarısız: ${error instanceof Error ? error.message : 'Yetki doğrulanamadı'}`);
+      }
     });
-    return () => unsubscribe();
-  }, []);
+    return () => { active = false; unsubscribe(); };
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
