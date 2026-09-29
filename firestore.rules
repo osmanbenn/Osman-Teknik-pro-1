@@ -1,53 +1,79 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    function isSignedIn() {
+    function signedIn() {
       return request.auth != null;
     }
 
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
+    function role() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    function staff() {
+      return signedIn() && role() in ['yonetici', 'teknisyen', 'cirak'];
+    }
+
+    function technician() {
+      return signedIn() && role() in ['yonetici', 'teknisyen'];
+    }
+
+    function manager() {
+      return signedIn() && role() == 'yonetici';
     }
 
     match /users/{userId} {
-      allow read: if isOwner(userId);
-      allow write: if isOwner(userId);
+      allow get: if signedIn() && request.auth.uid == userId;
+      allow list: if false;
+      allow create: if signedIn() && request.auth.uid == userId
+        && request.resource.data.uid == userId
+        && request.resource.data.role == 'teknisyen';
+      allow update: if signedIn() && request.auth.uid == userId
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['displayName', 'email', 'photoURL', 'lastLogin']);
+      allow delete: if false;
     }
 
     match /services/{serviceId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn();
-      allow update, delete: if isSignedIn();
+      allow read: if staff();
+      allow create, update: if technician();
+      allow delete: if manager();
     }
 
-    match /stock/{stockId} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn();
+    match /stock/{id} {
+      allow read: if staff();
+      allow write: if false;
     }
-
-    match /sales/{saleId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn();
-      allow update, delete: if isSignedIn();
+    match /sales/{id} {
+      allow read: if staff();
+      allow write: if false;
     }
-
-    match /phoneTrades/{tradeId} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn();
+    match /phoneTrades/{id} {
+      allow read: if staff();
+      allow write: if false;
     }
-
-    match /customers/{customerId} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn();
+    match /customers/{id} {
+      allow read: if staff();
+      allow write: if false;
     }
-
-    match /settings/{settingDoc} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn();
+    match /stockMovements/{id} {
+      allow read: if staff();
+      allow write: if false;
     }
-
-    match /test/{docId} {
-      allow read, write: if isSignedIn();
+    match /cashMovements/{id} {
+      allow read: if staff();
+      allow write: if false;
+    }
+    match /dayEndReports/{id} {
+      allow read: if staff();
+      allow write: if false;
+    }
+    match /aiLogs/{id} {
+      allow read: if staff();
+      allow write: if false;
+    }
+    match /settings/{id} {
+      allow read: if staff();
+      allow write: if manager();
     }
   }
 }
