@@ -5,75 +5,38 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function role() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    function isAdmin() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
-    function staff() {
-      return signedIn() && role() in ['yonetici', 'teknisyen', 'cirak'];
-    }
-
-    function technician() {
-      return signedIn() && role() in ['yonetici', 'teknisyen'];
-    }
-
-    function manager() {
-      return signedIn() && role() == 'yonetici';
-    }
-
+    // Canlı projede profilleri ve rolleri yalnız Admin SDK atar.
     match /users/{userId} {
-      allow get: if signedIn() && request.auth.uid == userId;
-      allow list: if false;
-      allow create: if signedIn() && request.auth.uid == userId
-        && request.resource.data.uid == userId
-        && request.resource.data.role == 'teknisyen';
-      allow update: if signedIn() && request.auth.uid == userId
-        && request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly(['displayName', 'email', 'photoURL', 'lastLogin']);
-      allow delete: if false;
+      allow read: if isAdmin() || (signedIn() && request.auth.uid == userId);
+      allow create, update, delete: if false;
     }
 
+    // Var olan koleksiyonların canlı yetki davranışı korunur.
+    match /repairs/{document=**} {
+      allow read, write: if isAdmin();
+    }
+    match /repairPhotos/{document=**} {
+      allow read, write: if isAdmin();
+    }
+    match /qrAccessLog/{document=**} {
+      allow read, write: if isAdmin();
+    }
+    match /appLogs/{document=**} {
+      allow read, write: if isAdmin();
+    }
+    match /stockBatches/{document=**} {
+      allow read, write: if isAdmin();
+    }
+
+    // Yeni istemci şeması henüz üretim akışına geçirilmedi.
     match /services/{serviceId} {
-      allow read: if staff();
-      allow create, update: if technician();
-      allow delete: if manager();
-    }
-
-    match /stock/{id} {
-      allow read: if staff();
-      allow write: if false;
-    }
-    match /sales/{id} {
-      allow read: if staff();
-      allow write: if false;
-    }
-    match /phoneTrades/{id} {
-      allow read: if staff();
-      allow write: if false;
-    }
-    match /customers/{id} {
-      allow read: if staff();
-      allow write: if false;
-    }
-    match /stockMovements/{id} {
-      allow read: if staff();
-      allow write: if false;
-    }
-    match /cashMovements/{id} {
-      allow read: if staff();
-      allow write: if false;
-    }
-    match /dayEndReports/{id} {
-      allow read: if staff();
-      allow write: if false;
-    }
-    match /aiLogs/{id} {
-      allow read: if staff();
-      allow write: if false;
-    }
-    match /settings/{id} {
-      allow read: if staff();
-      allow write: if manager();
+      allow read, write: if isAdmin();
     }
   }
 }
