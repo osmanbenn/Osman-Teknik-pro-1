@@ -28,6 +28,8 @@ import {
 } from '../data/initialData';
 import { safeStorage } from '../utils/storage';
 import { canAddStockToCart } from '../utils/smartScan';
+import { createTrackingToken } from '../utils/security';
+import { serviceTransitionError } from '../utils/serviceStage';
 
 interface AppContextType {
   currentUser: UserProfile;
@@ -313,7 +315,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const nextNum = services.length + 1;
     const srvNumStr = `SRV-2026-${String(nextNum).padStart(3, '0')}`;
     const nowStr = new Date().toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-    const qrToken = `qtk_${srvNumStr.toLowerCase()}_sec${Math.floor(100 + Math.random() * 900)}`;
+    const qrToken = createTrackingToken();
 
     const newRec: ServiceRecord = {
       ...data,
@@ -347,30 +349,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return newRec;
   };
 
-  // Stage transition with validation (Kabul -> Arıza Tespiti -> Onarımda -> Hazır -> Teslim Edildi)
-  const stageOrder: ServiceStage[] = ['kabul', 'ariza_tespiti', 'onarimda', 'hazir', 'teslim_edildi'];
-
   const updateServiceStage = (serviceId: string, newStage: ServiceStage, note?: string): boolean => {
     const srv = services.find(s => s.id === serviceId);
     if (!srv) return false;
-
-    const currentIndex = stageOrder.indexOf(srv.stage);
-    const targetIndex = stageOrder.indexOf(newStage);
-
-    // Çırak yetki kontrolü: Çırak sadece arıza tespiti görebilir, teslim edemez
-    if (currentUser.role === 'cirak' && (newStage === 'teslim_edildi' || newStage === 'hazir')) {
+    const transitionError = serviceTransitionError(srv.stage, newStage, currentUser.role);
+    if (transitionError === 'terminal' || transitionError === 'invalid') return false;
+    if (transitionError === 'apprentice') {
       alert('Çırak rolü cihazı hazır veya teslim edildi durumuna alamaz! Yönetici veya Teknisyen onayı gerekir.');
       return false;
     }
-
-    // Aşama atlamayı engelleme (Sadece sıradaki aşamaya geçilebilir veya 1 geri alınabilir)
-    if (targetIndex > currentIndex + 1) {
+    if (transitionError === 'skip') {
       alert(`Aşama atlanamaz! Önce sıradaki aşamaya geçilmelidir.`);
       return false;
     }
-
-    // Yetkisiz geriye alma koruması (Sadece Yönetici geriye alabilir)
-    if (targetIndex < currentIndex && currentUser.role !== 'yonetici') {
+    if (transitionError === 'manager_required') {
       alert('Sadece Yönetici yetkisine sahip kullanıcı servis aşamasını geriye alabilir!');
       return false;
     }

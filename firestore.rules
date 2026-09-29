@@ -1,53 +1,42 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    function isSignedIn() {
+    function signedIn() {
       return request.auth != null;
     }
 
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
+    function isAdmin() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
+    // Canlı projede profilleri ve rolleri yalnız Admin SDK atar.
     match /users/{userId} {
-      allow read: if isOwner(userId);
-      allow write: if isOwner(userId);
+      allow read: if isAdmin() || (signedIn() && request.auth.uid == userId);
+      allow create, update, delete: if false;
     }
 
+    // Var olan koleksiyonların canlı yetki davranışı korunur.
+    match /repairs/{document=**} {
+      allow read, write: if isAdmin();
+    }
+    match /repairPhotos/{document=**} {
+      allow read, write: if isAdmin();
+    }
+    match /qrAccessLog/{document=**} {
+      allow read, write: if isAdmin();
+    }
+    match /appLogs/{document=**} {
+      allow read, write: if isAdmin();
+    }
+    match /stockBatches/{document=**} {
+      allow read, write: if isAdmin();
+    }
+
+    // Yeni istemci şeması henüz üretim akışına geçirilmedi.
     match /services/{serviceId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn();
-      allow update, delete: if isSignedIn();
-    }
-
-    match /stock/{stockId} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn();
-    }
-
-    match /sales/{saleId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn();
-      allow update, delete: if isSignedIn();
-    }
-
-    match /phoneTrades/{tradeId} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn();
-    }
-
-    match /customers/{customerId} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn();
-    }
-
-    match /settings/{settingDoc} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn();
-    }
-
-    match /test/{docId} {
-      allow read, write: if isSignedIn();
+      allow read, write: if isAdmin();
     }
   }
 }
