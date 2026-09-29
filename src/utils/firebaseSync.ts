@@ -1,5 +1,6 @@
 import { doc, getDocFromServer } from 'firebase/firestore';
 import { auth, googleProvider, signInWithPopup, signOut, db } from '../firebase';
+import type { User } from '../firebase';
 import {
   ServiceRecord,
   StockItem,
@@ -44,6 +45,19 @@ export interface CloudDataPayload {
 }
 
 const VALID_ROLES = ['admin', 'yonetici', 'teknisyen', 'cirak'] as const;
+type UiRole = 'yonetici' | 'teknisyen' | 'cirak';
+
+export async function readAuthorizedRole(user: User): Promise<UiRole> {
+  const userSnap = await getDocFromServer(doc(db, 'users', user.uid));
+  if (!userSnap.exists()) {
+    throw new Error('Bu hesap için yetkili kullanıcı profili bulunamadı. Yöneticiye başvurun.');
+  }
+  const storedRole = userSnap.data().role;
+  if (!VALID_ROLES.includes(storedRole)) {
+    throw new Error('Kullanıcı rolü geçersiz. Yöneticiye başvurun.');
+  }
+  return storedRole === 'admin' ? 'yonetici' : storedRole;
+}
 
 // Canlı projede kullanıcı profilleri yalnız Admin SDK üzerinden oluşturulur.
 export async function loginWithGoogle() {
@@ -51,17 +65,8 @@ export async function loginWithGoogle() {
     const result = await signInWithPopup(auth, googleProvider);
     const user = result.user;
 
-    const userDocRef = doc(db, 'users', user.uid);
-    const userSnap = await getDocFromServer(userDocRef);
-    if (!userSnap.exists()) {
-      throw new Error('Bu hesap için yetkili kullanıcı profili bulunamadı. Yöneticiye başvurun.');
-    }
-    const storedRole = userSnap.data().role;
-    if (!VALID_ROLES.includes(storedRole)) {
-      throw new Error('Kullanıcı rolü geçersiz. Yöneticiye başvurun.');
-    }
-
-    return { success: true, user, role: storedRole === 'admin' ? 'yonetici' : storedRole };
+    const role = await readAuthorizedRole(user);
+    return { success: true, user, role };
   } catch (error: any) {
     console.error('Firebase Google Login hatası:', error);
     return { success: false, error: error.message || 'Giriş yapılamadı' };

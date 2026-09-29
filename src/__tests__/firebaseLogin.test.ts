@@ -20,7 +20,7 @@ vi.mock('../firebase', () => ({
   signOut: mocks.signOut,
 }));
 
-import { loginWithGoogle, pullAllFromCloud, pushAllToCloud } from '../utils/firebaseSync';
+import { loginWithGoogle, pullAllFromCloud, pushAllToCloud, readAuthorizedRole } from '../utils/firebaseSync';
 
 describe('Firebase login against the live admin profile schema', () => {
   beforeEach(() => {
@@ -42,6 +42,13 @@ describe('Firebase login against the live admin profile schema', () => {
     mocks.getDocFromServer.mockResolvedValue({ exists: () => false });
 
     await expect(loginWithGoogle()).resolves.toMatchObject({ success: false });
+  });
+
+  it('validates a previously signed-in account on reopening without another popup', async () => {
+    mocks.getDocFromServer.mockResolvedValue({ exists: () => true, data: () => ({ role: 'admin' }) });
+
+    await expect(readAuthorizedRole({ uid: 'test-uid' } as never)).resolves.toBe('yonetici');
+    expect(mocks.signInWithPopup).not.toHaveBeenCalled();
   });
 
   it('never pushes demo data or replaces it from incompatible cloud collections', async () => {
