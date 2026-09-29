@@ -1,6 +1,6 @@
 # Firebase veri geçişi ön denetimi — 29 Eylül 2026
 
-Canlı proje: `osman-teknik-82cb3`, varsayılan Firestore veritabanı (`eur3`). Konsolda salt okunur inceleme yapıldı. Canlı veri değiştirilmedi; kural yayımlanmadı.
+Canlı proje: `osman-teknik-82cb3`, varsayılan Firestore veritabanı (`eur3`). Eski servis kayıtları salt okunur incelendi; kural yayımlanmadı. 29 Eylül'de kullanıcının açık onayıyla yalnızca kendi Auth UID'sine ait `users` yönetici profili oluşturuldu; servis verisi değiştirilmedi.
 
 ## Gözlenen şema
 
@@ -10,7 +10,7 @@ Canlı proje: `osman-teknik-82cb3`, varsayılan Firestore veritabanı (`eur3`). 
 | `ServisKayitlari` (bir belge incelendi) | `ariza_tanimi`, `cihaz_model`, `durum`, `fotograflar`, `giris_tarihi`, `kayit_id`, `musteri_adi` | Ayrı bir eski şema; kaynakların birleştirme kuralı belirlenmeli. |
 | `users` | En az bir belgede `role: admin` | Yeni arayüzde `yonetici` olarak görüntülenir; Firestore rolü değiştirilmez. |
 
-Authentication listesinde `osmanyozcu1@gmail.com` Google hesabı bulunuyor. İncelenen `users` koleksiyonunda bu hesabın UID'sine karşılık gelen profil bulunmadı. Canlı kurallar istemciden profil oluşturmayı reddettiği için bu hesapla uygulama verisine erişim, yetkili bir profil atanmadan doğrulanamaz. Bu rapor yeni bir rol atamaz.
+Authentication listesinde onaylanan Google hesabı ve karşılık gelen UID doğrulandı. 29 Eylül'de onay üzerine ilgili `users/{UID}` belgesi `email`, `displayName` ve `role: admin` alanlarıyla oluşturuldu. Yeniden açılan konsolda alanlar görüldü. Yayındaki Firestore Rules Playground'da bu UID ile `/repairs/authorization-check` için `get` simülasyonu **Simulated read allowed** verdi; bu sonuç gerçek uygulama girişinin ya da servis işlevinin uçtan uca testi değildir. Canlı uygulamada Google giriş denemesi Google'ın geçiş anahtarı doğrulamasında kaldı.
 
 İncelenen belgeler tüm koleksiyonu temsil etmez. Kişisel bilgiler bu rapora alınmadı.
 
@@ -28,8 +28,8 @@ Authentication listesinde `osmanyozcu1@gmail.com` Google hesabı bulunuyor. İnc
 2. Canlı verinin yedeğini al; eksik zorunlu alanlar ve belirsiz fiyat/durum eşlemeleri için kayıt bazında inceleme listesi hazırla. Müşteri rızasını varsayılan `true` yapma.
 3. Test projesinde idempotent, geri alınabilir aktarımı ve servis kabul→teslim uçtan uca akışını doğrula. Sonra canlıya aşamalı geçiş ve kural dağıtımı yap.
 
-Canlı hesabın `admin` gibi tüm servis/müşteri verisine erişen bir role yükseltilmesi ayrı, açık bir yetki kararıdır. Rol ataması yapılmadan önce erişim kapsamı onaylanmalıdır.
+Bu hesaba `admin` rolü verilmesi kullanıcı tarafından açıkça onaylandı. Diğer hesapların rolü değiştirilmedi.
 
 ## Mevcut test sınırı
 
-`npm test` salt veri denetleyicisini, `npm run test:rules` izinleri emülatörde sınar. Canlı Auth, Storage yükleme, tüm belgelerin taraması ve uçtan uca işlem doğrulanmadı.
+`npm test` salt veri denetleyicisini, `npm run test:rules` izinleri emülatörde sınar. Canlı kural simülasyonu yukarıdaki UID için okuma iznini doğruladı. Gerçek uygulama Auth oturumu, Storage yükleme, tüm belgelerin taraması ve uçtan uca işlem doğrulanmadı. Yayındaki 17 Eylül sürümü hâlâ yerel örnek veriler ve eski push/pull arayüzünü gösteriyor; bu sürüme yeni PR kodu dağıtılmadı.
