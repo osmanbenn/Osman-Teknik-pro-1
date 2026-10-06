@@ -1,28 +1,29 @@
-import React, { useState } from 'react';
+import React, { lazy, Suspense, useState } from 'react';
 import { AppProvider, useApp } from './context/AppContext';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
 import { Header } from './components/Header';
 import { BottomNav } from './components/BottomNav';
-import { Dashboard } from './components/Dashboard';
-import { Servis } from './components/Servis';
-import { Satis } from './components/Satis';
-import { TelefonAlimSatim } from './components/TelefonAlimSatim';
-import { Stok } from './components/Stok';
-import { Cari } from './components/Cari';
-import { Kasa } from './components/Kasa';
-import { AiAsistan } from './components/AiAsistan';
-import { TemaKarsilastirma } from './components/TemaKarsilastirma';
-import { Ayarlar } from './components/Ayarlar';
-import { Menu } from './components/Menu';
 import { ServisKabulModal } from './components/ServisKabulModal';
 import { ThermalReceiptModal } from './components/ThermalReceiptModal';
-import { CustomerTrackingPortal } from './components/CustomerTrackingPortal';
-import { TechnicianPerformanceModal } from './components/TechnicianPerformanceModal';
 import { VoiceAssistantController } from './components/VoiceAssistantController';
 import { KeyboardShortcutsModal } from './components/KeyboardShortcutsModal';
 import { UsdCalculatorModal } from './components/UsdCalculatorModal';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { NavigationTab, ServiceRecord, SaleRecord } from './types';
+
+const Dashboard = lazy(() => import('./components/Dashboard').then((m) => ({ default: m.Dashboard })));
+const Servis = lazy(() => import('./components/Servis').then((m) => ({ default: m.Servis })));
+const Satis = lazy(() => import('./components/Satis').then((m) => ({ default: m.Satis })));
+const TelefonAlimSatim = lazy(() => import('./components/TelefonAlimSatim').then((m) => ({ default: m.TelefonAlimSatim })));
+const Stok = lazy(() => import('./components/Stok').then((m) => ({ default: m.Stok })));
+const Cari = lazy(() => import('./components/Cari').then((m) => ({ default: m.Cari })));
+const Kasa = lazy(() => import('./components/Kasa').then((m) => ({ default: m.Kasa })));
+const AiAsistan = lazy(() => import('./components/AiAsistan').then((m) => ({ default: m.AiAsistan })));
+const TemaKarsilastirma = lazy(() => import('./components/TemaKarsilastirma').then((m) => ({ default: m.TemaKarsilastirma })));
+const Ayarlar = lazy(() => import('./components/Ayarlar').then((m) => ({ default: m.Ayarlar })));
+const Menu = lazy(() => import('./components/Menu').then((m) => ({ default: m.Menu })));
+const CustomerTrackingPortal = lazy(() => import('./components/CustomerTrackingPortal').then((m) => ({ default: m.CustomerTrackingPortal })));
+const TechnicianPerformanceModal = lazy(() => import('./components/TechnicianPerformanceModal').then((m) => ({ default: m.TechnicianPerformanceModal })));
 import {
   LayoutDashboard,
   Wrench,
@@ -145,6 +146,7 @@ const AppContent: React.FC = () => {
 
       {/* Main Content Area */}
       <main className="flex-1 p-2.5 sm:p-5 max-w-7xl w-full mx-auto pb-24 md:pb-6 overflow-x-hidden">
+        <Suspense fallback={<div className="py-12 text-center text-sm text-zinc-400">Modül yükleniyor...</div>}>
         {activeTab === 'dashboard' && (
           <Dashboard
             onNavigate={(tab) => setActiveTab(tab)}
@@ -205,6 +207,7 @@ const AppContent: React.FC = () => {
         {activeTab === 'menu' && (
           <Menu onSelectTab={(tab) => setActiveTab(tab)} />
         )}
+        </Suspense>
       </main>
 
       {/* Mobile Fixed Bottom Navigation with elevated center AI Asistan */}

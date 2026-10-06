@@ -17,6 +17,8 @@ jobs:
           node-version: 20.x
       - name: Install dependencies
         run: npm install --ignore-scripts
+      - name: Production dependency audit
+        run: npm audit --omit=dev --audit-level=critical
       - name: Type check
         run: npm run lint
       - name: Unit tests
